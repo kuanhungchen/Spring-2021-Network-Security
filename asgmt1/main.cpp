@@ -3,7 +3,7 @@
 using namespace std;
 
 #define N 100
-#define max(a, b) a>b?a:b
+#define max(a, b) a > b ? a : b
 
 #define HEX2DEC(h) ({                             \
   int d;                                          \
