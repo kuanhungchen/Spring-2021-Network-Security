@@ -56,6 +56,7 @@ class BigNumber {
     // constructor
     BigNumber();
     BigNumber(const string&);
+    BigNumber(const bool, const int, const char*);
 
     // destructor
     ~BigNumber();
@@ -80,6 +81,16 @@ BigNumber::BigNumber() {
   _array = new char[N];
   for (int i = 0; i < N; ++i)
     _array[i] = '0';
+}
+
+BigNumber::BigNumber(const bool sign, const int len, const char *array) {
+  _sign = sign;
+  _len = len;
+  _array = new char[N];
+  for (int i = N - 1; i >= _len; --i)
+    _array[i] = '0';
+  for (int i = _len - 1; i >= 0; --i)
+    _array[i] = array[i];
 }
 
 BigNumber::BigNumber(const string& array) {
@@ -111,58 +122,79 @@ inline void BigNumber::SetArray(const char *array) {
 
 BigNumber BigNumber::operator+(const BigNumber &target) {
   int new_len = max(_len, target._len);
+  bool new_sign = false;
   char sum[N], carry = '0';
   for (int i = 0; i <= new_len; ++i) {
     sum[i] = add(_array[i], target._array[i], carry, carry);
   }
   if (sum[new_len] != '0') ++new_len;
 
-  BigNumber res;
-  res.SetSign(false);
-  res.SetArray(sum);
-  res.SetLen(new_len);
+  BigNumber res(new_sign, new_len, sum);
 
   return res;
 }
 
 BigNumber BigNumber::operator-(const BigNumber &target) {
   int new_len = 0;
+  bool new_sign = false;
   char sum[N], borrow = '0';
-  for (int i = 0; i < N; ++i) {
-    sum[i] = sub(_array[i], target._array[i], borrow, borrow);
-    if (sum[i] != '0') new_len = i + 1;
+  if (_len > target._len) {
+    // a > b
+    for (int i = 0; i < _len; ++i)
+      sum[i] = sub(_array[i], target._array[i], borrow, borrow);
+  } else if (_len < target._len) {
+    // a < b
+    new_sign = true;
+    for (int i = 0; i < target._len; ++i)
+      sum[i] = sub(target._array[i], _array[i], borrow, borrow);
+  } else {
+    for (new_len = _len; new_len > 0 && _array[new_len - 1] == target._array[new_len - 1]; --new_len);
+    if (new_len != 0) {
+      if (_array[new_len - 1] > target._array[new_len - 1]) {
+        // a > b
+        for (int i = 0; i < new_len; ++i)
+          sum[i] = sub(_array[i], target._array[i], borrow, borrow);
+      } else if (_array[new_len - 1] < target._array[new_len - 1]){
+        // a < b
+        new_sign = true;
+        for (int i = 0; i < new_len; ++i)
+          sum[i] = sub(target._array[i], _array[i], borrow, borrow);
+      }
+      for (; sum[new_len - 1] == '0'; --new_len);
+    } else {
+      new_len = 1;
+      sum[0] = '0';
+    }
   }
 
-  BigNumber res;
-  res.SetSign(false);
-  res.SetArray(sum);
-  res.SetLen(new_len);
+  BigNumber res(new_sign, new_len, sum);
 
   return res;
 }
 
 int main(int argc, const char * argv[]) {
-  //string a = argv[1];
-  //string b = argv[2];
+  string a = argv[1];
+  string b = argv[2];
 
-  string a, b;
-  cout << "a= ";
-  cin >> a;
-  cout << "b= ";
-  cin >> b;
+  //string a, b;
+  //cout << "a= ";
+  //cin >> a;
+  //cout << "b= ";
+  //cin >> b;
 
-  cout << "a= ";
   BigNumber big_num_a(a);
-  cout << "a= ";
   BigNumber big_num_b(b);
-
+  //cout << "a= ";
+  //big_num_a.Print();
+  //cout << "b= ";
+  //big_num_b.Print();
 
   BigNumber big_num_c = big_num_a + big_num_b;
   cout << "a+b = ";
   big_num_c.Print();
-  //BigNumber big_num_d = big_num_a - big_num_b;
-  //cout << "a-b = ";
-  //big_num_d.Print();
+  BigNumber big_num_d = big_num_a - big_num_b;
+  cout << "a-b = ";
+  big_num_d.Print();
 
   return 0;
 }
