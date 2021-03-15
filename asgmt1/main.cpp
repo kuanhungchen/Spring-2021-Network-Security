@@ -2,7 +2,7 @@
 
 using namespace std;
 
-#define N 100
+#define N 20000
 #define max(a, b) a > b ? a : b
 
 #define HEX2DEC(h) ({                             \
@@ -47,6 +47,20 @@ char sub(const char a, const char b, const char c, char &borrow) {
   return sum;
 }
 
+char mul(const char a, const char b, const char c, char &sum) {
+  /* multiplication for single bit */
+  int r = HEX2DEC(a) * HEX2DEC(b) + HEX2DEC(c);
+  char carry;
+  if (r >= 16) {
+    sum = DEC2HEX(r % 16);
+    carry = DEC2HEX(r / 16);
+  } else {
+    sum = DEC2HEX(r);
+    carry = '0';
+  }
+  return carry;
+}
+
 class BigNumber {
   private:
     bool _sign;     // true means negative
@@ -64,7 +78,7 @@ class BigNumber {
     // operators
     BigNumber operator+(const BigNumber&);
     BigNumber operator-(const BigNumber&);
-    BigNumber operator*(BigNumber&);
+    BigNumber operator*(const BigNumber&);
     BigNumber operator/(BigNumber&);
     BigNumber operator%(BigNumber&);
 
@@ -135,38 +149,69 @@ BigNumber BigNumber::operator+(const BigNumber &target) {
 }
 
 BigNumber BigNumber::operator-(const BigNumber &target) {
-  int new_len = 0;
-  bool new_sign = false;
+  int new_len;
+  bool new_sign;
   char sum[N], borrow = '0';
+
   if (_len > target._len) {
-    // a > b
-    for (int i = 0; i < _len; ++i)
-      sum[i] = sub(_array[i], target._array[i], borrow, borrow);
+    new_len = _len;
+    new_sign = false;
   } else if (_len < target._len) {
-    // a < b
+    new_len = target._len;
     new_sign = true;
-    for (int i = 0; i < target._len; ++i)
-      sum[i] = sub(target._array[i], _array[i], borrow, borrow);
   } else {
-    for (new_len = _len; new_len > 0 && _array[new_len - 1] == target._array[new_len - 1]; --new_len);
-    if (new_len != 0) {
-      if (_array[new_len - 1] > target._array[new_len - 1]) {
-        // a > b
-        for (int i = 0; i < new_len; ++i)
-          sum[i] = sub(_array[i], target._array[i], borrow, borrow);
-      } else if (_array[new_len - 1] < target._array[new_len - 1]){
-        // a < b
-        new_sign = true;
-        for (int i = 0; i < new_len; ++i)
-          sum[i] = sub(target._array[i], _array[i], borrow, borrow);
-      }
-      for (; sum[new_len - 1] == '0'; --new_len);
+    for (new_len = _len; new_len > 0 &&
+        _array[new_len - 1] == target._array[new_len - 1]; --new_len);
+    if (new_len == 0 || (_array[new_len - 1] > target._array[new_len - 1])) {
+      new_sign = false;
     } else {
-      new_len = 1;
-      sum[0] = '0';
+      new_sign = true;
     }
   }
 
+  if (new_len == 0) {
+    // a == b
+    new_len = 1;
+    sum[0] = '0';
+  } else {
+    if (new_sign) {
+      // a < b
+      for (int i = 0; i < new_len; ++i)
+        sum[i] = sub(target._array[i], _array[i], borrow, borrow);
+    } else {
+      // a > b
+      for (int i = 0; i < new_len; ++i)
+        sum[i] = sub(_array[i], target._array[i], borrow, borrow);
+    }
+    for (; sum[new_len - 1] == '0'; --new_len);
+  }
+  BigNumber res(new_sign, new_len, sum);
+
+  return res;
+}
+
+BigNumber BigNumber::operator*(const BigNumber &target) {
+  int new_len;
+  bool new_sign = false;
+  char sum[N], carry;
+  for (int i = 0; i < N; ++i) sum[i] = '0';
+  for (int i = 0; i < target._len; ++i) {
+    if (target._array[i] == '0') continue;
+    for (int j = 0; j < _len; ++j) {
+      carry = mul(target._array[i], _array[j], sum[i + j], sum[i + j]);
+      int x = 1;
+      while (i + j + x < N && carry != '0') {
+        sum[i + j + x] = add(sum[i + j + x], carry, '0', carry);
+        ++x;
+      }
+    }
+  }
+  for (new_len = _len * target._len + 1; new_len > 0 &&
+      sum[new_len - 1] == '0'; --new_len);
+  if (new_len == 0) {
+    new_len = 1;
+    sum[0] = '0';
+  }
   BigNumber res(new_sign, new_len, sum);
 
   return res;
@@ -195,6 +240,9 @@ int main(int argc, const char * argv[]) {
   BigNumber big_num_d = big_num_a - big_num_b;
   cout << "a-b = ";
   big_num_d.Print();
+  BigNumber big_num_e = big_num_a * big_num_b;
+  cout << "a*b = ";
+  big_num_e.Print();
 
   return 0;
 }
