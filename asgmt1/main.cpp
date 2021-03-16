@@ -83,6 +83,7 @@ class BigNumber {
     BigNumber operator%(BigNumber&);
 
     // helper methods
+    int BiggerThan(const BigNumber&);
     void Print();
     void SetSign(const bool sign) {_sign = sign;}
     void SetLen(const int len) {_len = len;}
@@ -134,54 +135,63 @@ inline void BigNumber::SetArray(const char *array) {
     _array[i] = array[i];
 }
 
-BigNumber BigNumber::operator+(const BigNumber &target) {
-  int new_len = max(_len, target._len);
-  bool new_sign = false;
-  char sum[N], carry = '0';
-  for (int i = 0; i <= new_len; ++i) {
-    sum[i] = add(_array[i], target._array[i], carry, carry);
-  }
-  if (sum[new_len] != '0') ++new_len;
 
+int BigNumber::BiggerThan(const BigNumber &target) {
+  int res = -2;  // 1: a > b, 0: a == b, -1: a < b
+  if (_len > target._len) {
+    res = 1;
+  } else if (_len < target._len) {
+    res = -1;
+  } else {
+    int i;
+    for (i = _len; i > 0 && _array[i - 1] == target._array[i - 1]; --i);
+    if (i == 0) res = 0;
+    else if (_array[i - 1] > target._array[i - 1]) {
+      res = 1;
+    } else {
+      res = -1;
+    }
+  }
+  return res;
+}
+
+BigNumber BigNumber::operator+(const BigNumber &target) {
+  bool new_sign = false;
+  int new_len = max(_len, target._len);
+  char sum[N], carry = '0';
+  for (int i = 0; i < N; ++i) sum[i] = '0';
+
+  for (int i = 0; i <= new_len; ++i)
+    sum[i] = add(_array[i], target._array[i], carry, carry);
+  if (sum[new_len] != '0') ++new_len;
   BigNumber res(new_sign, new_len, sum);
 
   return res;
 }
 
 BigNumber BigNumber::operator-(const BigNumber &target) {
+  bool new_sign = false;
   int new_len;
-  bool new_sign;
   char sum[N], borrow = '0';
+  for (int i = 0; i < N; ++i) sum[i] = '0';
 
-  if (_len > target._len) {
-    new_len = _len;
-    new_sign = false;
-  } else if (_len < target._len) {
-    new_len = target._len;
-    new_sign = true;
-  } else {
-    for (new_len = _len; new_len > 0 &&
-        _array[new_len - 1] == target._array[new_len - 1]; --new_len);
-    if (new_len == 0 || (_array[new_len - 1] > target._array[new_len - 1])) {
-      new_sign = false;
-    } else {
-      new_sign = true;
-    }
-  }
-
-  if (new_len == 0) {
+  int cmp = BiggerThan(target);
+  if (cmp == 0) {
     // a == b
     new_len = 1;
     sum[0] = '0';
   } else {
-    if (new_sign) {
-      // a < b
-      for (int i = 0; i < new_len; ++i)
-        sum[i] = sub(target._array[i], _array[i], borrow, borrow);
-    } else {
+    if (cmp == 1) {
       // a > b
+      new_len = _len;
       for (int i = 0; i < new_len; ++i)
         sum[i] = sub(_array[i], target._array[i], borrow, borrow);
+    } else if (cmp == -1) {
+      // a < b
+      new_sign = true;
+      new_len = target._len;
+      for (int i = 0; i < new_len; ++i)
+        sum[i] = sub(target._array[i], _array[i], borrow, borrow);
     }
     for (; sum[new_len - 1] == '0'; --new_len);
   }
@@ -191,10 +201,11 @@ BigNumber BigNumber::operator-(const BigNumber &target) {
 }
 
 BigNumber BigNumber::operator*(const BigNumber &target) {
-  int new_len;
   bool new_sign = false;
+  int new_len;
   char sum[N], carry;
   for (int i = 0; i < N; ++i) sum[i] = '0';
+
   for (int i = 0; i < target._len; ++i) {
     if (target._array[i] == '0') continue;
     for (int j = 0; j < _len; ++j) {
