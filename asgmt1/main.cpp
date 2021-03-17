@@ -3,21 +3,30 @@
 using namespace std;
 
 #define N 20000
-#define max(a, b) a > b ? a : b
 
-#define HEX2DEC(h) ({                             \
-  int d;                                          \
-  if (h >= '0' && h <= '9') {d = (int)(h - 48);}  \
-  else {d = (int)(h - 97 + 10);}                  \
-  d;                                              \
-})
+int max(const int a, const int b) {
+  if (a > b) return a;
+  return b;
+}
 
-#define DEC2HEX(d) ({                             \
-  char h;                                         \
-  if ((int)d < 10) {h = (char)(48 + d);}          \
-  else {h = (char)(97 + (d - 10));}               \
-  h;                                              \
-})
+int min(const int a, const int b) {
+  if (a < b) return a;
+  return b;
+}
+
+int HEX2DEC(const char c) {
+  int d;
+  if (c >= '0' && c <= '9') d = (int)(c - 48);
+  else d = (int)(c - 97 + 10);
+  return d;
+}
+
+char DEC2HEX(const int d) {
+  char c;
+  if ((int)d < 10) c = (char)(d + 48);
+  else c = (char)(d + 97 - 10);
+  return c;
+}
 
 char add(const char a, const char b, const char c, char &carry) {
   /* addition for single bit */
