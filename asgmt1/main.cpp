@@ -98,7 +98,6 @@ class BigNumber {
     // helper methods
     void print();
     void rotate_left();
-    void recycle() {delete this;}
 };
 
 BigNumber::BigNumber() {
@@ -290,9 +289,7 @@ BigNumber BigNumber::operator%(const BigNumber &target) {
   bool new_sign = this->_sign ^ target._sign;
   int new_len = 0;
   char remainder_array[N];
-  for (int i = 0; i < N; ++i) {
-    remainder_array[i] = '0';
-  }
+  for (int i = 0; i < N; ++i) remainder_array[i] = '0';
 
   BigNumber remainder;
   for (int cur_idx = this->_len - 1, cur_val = 0; cur_idx >= 0; --cur_idx, cur_val = 0) {
@@ -361,6 +358,7 @@ inline void BigNumber::rotate_left() {
 
 int main(int argc, const char * argv[]) {
   string a, b;
+
   cout << "a= ";
   cin >> a;
   cout << "b= ";
