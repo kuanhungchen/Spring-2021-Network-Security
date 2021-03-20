@@ -91,16 +91,19 @@ class BigNumber {
     BigNumber operator+(const BigNumber&);
     BigNumber operator-(const BigNumber&);
     BigNumber operator*(const BigNumber&);
-    BigNumber operator/(const BigNumber&);
+    BigNumber operator/(BigNumber&);  // modify itself to represent remainder
     BigNumber operator%(const BigNumber&);
-    BigNumber& operator-=(const BigNumber&);  // to prevent re-instancialize
+    BigNumber& operator-=(const BigNumber&);  // prevent re-instancialize
 
-    // helper methods
-    void print();
-    void rotate_left();
+    // helper functions
+    void print() const;
+    void rotate_left(const int);
+    void rotate_right(const int);
+    BigNumber div_and_mod(BigNumber&);  // divide and modulo can be calculated at the same time
 };
 
 BigNumber::BigNumber() {
+  /* constructor: initialize */
   this->_sign = false;
   this->_len = 0;
   this->_array = new char[N];
@@ -109,6 +112,7 @@ BigNumber::BigNumber() {
 }
 
 BigNumber::BigNumber(const string& array) {
+  /* constructor: given a string */
   this->_sign = array[0] == '-';
   this->_len = this->_sign ? array.size() - 1 : array.size();
   this->_array = new char[N];
@@ -119,6 +123,7 @@ BigNumber::BigNumber(const string& array) {
 }
 
 BigNumber::BigNumber(const bool sign, const int len, const char *array) {
+  /* constructor: given sign, length, and char array */
   this->_sign = sign;
   this->_len = len;
   this->_array = new char[N];
@@ -129,6 +134,7 @@ BigNumber::BigNumber(const bool sign, const int len, const char *array) {
 }
 
 BigNumber::~BigNumber() {
+  /* destructor */
   delete [] this->_array;
 }
 
@@ -181,9 +187,9 @@ BigNumber BigNumber::operator+(const BigNumber &target) {
   char sum_array[N], carry = '0';
   for (int i = 0; i < N; ++i) sum_array[i] = '0';
 
-  for (int i = 0; i <= new_len; ++i)
+  for (int i = 0; i <= new_len; ++i)  // start from low-digit to high-digit
     sum_array[i] = add(this->_array[i], target._array[i], carry, carry);
-  if (sum_array[new_len] != '0') ++new_len;
+  if (sum_array[new_len] != '0') ++new_len;  // if carry exists at highest-digit, then the length will be increased
 
   BigNumber sum(new_sign, new_len, sum_array);
   return sum;
@@ -204,16 +210,16 @@ BigNumber BigNumber::operator-(const BigNumber &target) {
       // a > b
       new_sign = false;
       new_len = this->_len;
-      for (int i = 0; i < new_len; ++i)
+      for (int i = 0; i < new_len; ++i)  // start from low-digit to high-digit
         diff_array[i] = sub(this->_array[i], target._array[i], borrow, borrow);
     } else {
       // a < b
       new_sign = true;
       new_len = target._len;
-      for (int i = 0; i < new_len; ++i)
+      for (int i = 0; i < new_len; ++i)  // start from low-digit to high-digit
         diff_array[i] = sub(target._array[i], this->_array[i], borrow, borrow);
     }
-    for (; diff_array[new_len - 1] == '0'; --new_len);
+    for (; diff_array[new_len - 1] == '0'; --new_len);  // find new length
   }
 
   BigNumber diff(new_sign, new_len, diff_array);
@@ -221,14 +227,14 @@ BigNumber BigNumber::operator-(const BigNumber &target) {
 }
 
 BigNumber BigNumber::operator*(const BigNumber &target) {
-  bool new_sign = this->_sign ^ target._sign;
+  bool new_sign = this->_sign ^ target._sign;  // new sign depends on sign of two inputs
   int new_len;
   char product_array[N], carry;
   for (int i = 0; i < N; ++i) product_array[i] = '0';
 
   for (int i = 0; i < target._len; ++i) {
     if (target._array[i] == '0') continue;  // ignore when the bit is zero
-    for (int j = 0; j < this->_len; ++j) {
+    for (int j = 0; j < this->_len; ++j) {  // start from low-digit to high-digit
       carry = mul(target._array[i], this->_array[j], product_array[i + j], product_array[i + j]);
 
       // handle the carry bit
@@ -240,7 +246,7 @@ BigNumber BigNumber::operator*(const BigNumber &target) {
     }
   }
   for (new_len = this->_len * target._len + 1; new_len > 0 &&
-      product_array[new_len - 1] == '0'; --new_len);
+      product_array[new_len - 1] == '0'; --new_len);  // find new length
   if (new_len == 0) {
     // if result is zero
     new_sign = false;
@@ -252,61 +258,16 @@ BigNumber BigNumber::operator*(const BigNumber &target) {
   return product;
 }
 
-BigNumber BigNumber::operator/(const BigNumber &target) {
-  bool new_sign = this->_sign ^ target._sign;
-  int new_len = 0;
-  char quotient_array[N];
-  char remainder_array[N];
-  for (int i = 0; i < N; ++i) {
-    quotient_array[i] = '0';
-    remainder_array[i] = '0';
-  }
-
-  BigNumber remainder;
-  for (int cur_idx = this->_len - 1, cur_val = 0; cur_idx >= 0; --cur_idx, cur_val = 0) {
-    remainder.rotate_left();  // remainder *= 16
-    remainder._array[0] = this->_array[cur_idx];
-    while (remainder > target || remainder == target) {
-      ++cur_val;  // increment quotient when target is larger than remainder
-      remainder -= target;  // use new operator to prevent re-instancialize
-    }
-    quotient_array[cur_idx] = DEC2HEX(cur_val);
-    if (new_len != 0 || (new_len == 0 && cur_val != 0)) ++new_len;
-  }
-  if (new_len == 0) {
-    // if result is zero
-    new_sign = false;
-    new_len = 1;
-    quotient_array[0] = '0';
-  }
-
-  BigNumber quotient(new_sign, new_len, quotient_array);
-  return quotient;
+BigNumber BigNumber::operator/(BigNumber &target) {
+  return this->div_and_mod(target);  // use helper function to calculate both division and modulo
 }
 
 BigNumber BigNumber::operator%(const BigNumber &target) {
-  // similar to division but now can ignore quotient
-  bool new_sign = this->_sign ^ target._sign;
-  int new_len = 0;
-  char remainder_array[N];
-  for (int i = 0; i < N; ++i) remainder_array[i] = '0';
-
-  BigNumber remainder;
-  for (int cur_idx = this->_len - 1, cur_val = 0; cur_idx >= 0; --cur_idx, cur_val = 0) {
-    remainder.rotate_left();  // remainder *= 16
-    remainder._array[0] = this->_array[cur_idx];
-    while (remainder > target || remainder == target) {
-      ++cur_val;
-      remainder -= target;
-    }
-    if (new_len != 0 || (new_len == 0 && cur_val != 0)) ++new_len;
-  }
-
-  return remainder;
+  return *this;  // after division, the original a has become remainder
 }
 
 BigNumber& BigNumber::operator-=(const BigNumber &target) {
-  // add this operator to prevent re-instancialize
+  /* a subtraction helper function to prevent re-instancialize */
   bool new_sign;
   int new_len;
   char diff_array[N], borrow = '0';
@@ -322,38 +283,87 @@ BigNumber& BigNumber::operator-=(const BigNumber &target) {
       // a > b
       new_sign = false;
       new_len = this->_len;
-      for (int i = 0; i < new_len; ++i)
-        diff_array[i] = sub(_array[i], target._array[i], borrow, borrow);
+      for (int i = 0; i < new_len; ++i)  // start from low-digit to high-digit
+        diff_array[i] = sub(this->_array[i], target._array[i], borrow, borrow);
     } else {
       // a < b
       new_sign = true;
       new_len = target._len;
-      for (int i = 0; i < new_len; ++i)
+      for (int i = 0; i < new_len; ++i)  // start from low-digit to high-digit
         diff_array[i] = sub(target._array[i], this->_array[i], borrow, borrow);
     }
-    for (; diff_array[new_len - 1] == '0'; --new_len);
+    for (; diff_array[new_len - 1] == '0'; --new_len);  // find new length
   }
+
+  // assign to itself instead of create a new instance
   this->_sign = new_sign;
-  this->_len = new_len;
   for (int i = this->_len - 1; i >= 0; --i)
     this->_array[i] = diff_array[i];
+  this->_len = new_len;
 
   return *this;
 }
 
-inline void BigNumber::print() {
-  if (this->_sign)
+BigNumber BigNumber::div_and_mod(BigNumber &target) {
+  BigNumber quotient;
+
+  int cur_len = this->_len - target._len;
+  target.rotate_left(cur_len);  // make divisor same length with dividend
+  target._len = min(N, target._len + cur_len);
+  for (int cur_val = 0; cur_len >= 0; --cur_len, cur_val = 0) {
+    while (*this > target || *this == target) {
+      // if divisor is less than dividend, add 1 to the current position in the quotient
+      ++cur_val;
+      *this -= target;
+    }
+    quotient._array[cur_len] = DEC2HEX(cur_val);  // put the current position's value into quotient
+    target.rotate_right(1);  // each iteration, divisor is 16 times less than previous iteration
+    target._len = max(0, target._len - 1);
+  }
+
+  // find new length
+  int i;
+  for (i = N - 1; i >= 0 && quotient._array[i] == '0'; --i);
+  if (i == -1) {
+    quotient._len = 1;
+    quotient._array[0] = '0';
+  } else {
+    quotient._len = i + 1;
+  }
+  for (i = N - 1; i >= 0 && this->_array[i] == '0'; --i);
+  if (i == -1) {
+    this->_len = 1;
+    this->_array[0] = '0';
+  } else {
+    this->_len = i + 1;
+  }
+
+  return quotient;
+}
+
+inline void BigNumber::print() const {
+  if (this->_sign)  // if it is negative
     cout << "-";
   for (int i = this->_len - 1; i >= 0; --i)
     cout << this->_array[i];
   cout << endl;
 }
 
-inline void BigNumber::rotate_left() {
-  for (int i = min(N - 1, this->_len); i > 0; --i)
-    this->_array[i] = this->_array[i - 1];
-  this->_array[0] = '0';
-  this->_len = min(this->_len + 1, N);
+inline void BigNumber::rotate_left(const int x){
+  // shift all bits to left by x times
+  for (int i = min(N, this->_len + x) - 1; i >= x; --i)
+    this->_array[i] = this->_array[i - x];
+  for (int i = x - 1; i >= 0; --i)
+    this->_array[i] = '0';
+}
+
+inline void BigNumber::rotate_right(const int x) {
+  // shift all bits to right by x times
+  for (int i = 0; i < this->_len - x; ++i)
+    this->_array[i] = this->_array[i + x];
+  for (int i = this->_len - x; i < this->_len; ++i) {
+    this->_array[i] = '0';
+  }
 }
 
 int main(int argc, const char * argv[]) {
@@ -367,21 +377,30 @@ int main(int argc, const char * argv[]) {
   BigNumber big_num_a(a);
   BigNumber big_num_b(b);
 
-  BigNumber big_num_c = big_num_a + big_num_b;
+  // addition
+  BigNumber a_plus_b = big_num_a + big_num_b;
   cout << "a+b = ";
-  big_num_c.print();
-  BigNumber big_num_d = big_num_a - big_num_b;
+  a_plus_b.print();
+
+  // subtraction
+  BigNumber a_minus_b = big_num_a - big_num_b;
   cout << "a-b = ";
-  big_num_d.print();
-  BigNumber big_num_e = big_num_a * big_num_b;
+  a_minus_b.print();
+
+  // multiplication
+  BigNumber a_mul_b = big_num_a * big_num_b;
   cout << "a*b = ";
-  big_num_e.print();
-  BigNumber big_num_f = big_num_a / big_num_b;
+  a_mul_b.print();
+
+  // division
+  BigNumber a_div_b = big_num_a / big_num_b;
   cout << "a/b = ";
-  big_num_f.print();
-  BigNumber big_num_g = big_num_a % big_num_b;
+  a_div_b.print();
+
+  // modulo
+  // a has already become modulo
   cout << "a%b = ";
-  big_num_g.print();
+  big_num_a.print();
 
   return 0;
 }
