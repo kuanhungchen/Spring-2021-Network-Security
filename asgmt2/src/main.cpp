@@ -169,6 +169,25 @@ void MixColumns(uint8_t **state) {
   delete[] tmp;
 }
 
+void RotWord(uint8_t *word) {
+  uint8_t tmp = word[0];
+  for (int i = 0; i < 3; ++i) word[i] = word[i + 1];
+  word[3] = tmp;
+}
+
+void SubWord(uint8_t *word) {
+  for (int i = 0; i < 4; ++i)
+    word[i] = AffineTransform(word[i]);
+}
+
+void Rcon(uint8_t *rcon, int r) {
+  uint8_t tmp = 1;
+  for (int i = 1; i < r; ++i)
+    tmp = GF256_mult_x(tmp, 0x1b);
+  rcon[0] = tmp;
+  rcon[1] = rcon[2] = rcon[3] = 0;
+}
+
 
 void AES_Encrypt(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *Key);
 void AES_Decrypt(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *Key);
