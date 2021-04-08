@@ -142,102 +142,30 @@ void MixColumns(uint8_t **state) {
   uint8_t *tmp = new uint8_t[4];
   uint8_t a, b, c, d, mx=0x1b;
 
-  // first column
-  a = GF256_mult(state[0][0], 0x02, mx);
-  b = GF256_mult(state[1][0], 0x03, mx);
-  c = GF256_mult(state[2][0], 0x01, mx);
-  d = GF256_mult(state[3][0], 0x01, mx);
-  tmp[0] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  a = GF256_mult(state[0][0], 0x01, mx);
-  b = GF256_mult(state[1][0], 0x02, mx);
-  c = GF256_mult(state[2][0], 0x03, mx);
-  d = GF256_mult(state[3][0], 0x01, mx);
-  tmp[1] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  a = GF256_mult(state[0][0], 0x01, mx);
-  b = GF256_mult(state[1][0], 0x01, mx);
-  c = GF256_mult(state[2][0], 0x02, mx);
-  d = GF256_mult(state[3][0], 0x03, mx);
-  tmp[2] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  a = GF256_mult(state[0][0], 0x03, mx);
-  b = GF256_mult(state[1][0], 0x01, mx);
-  c = GF256_mult(state[2][0], 0x01, mx);
-  d = GF256_mult(state[3][0], 0x02, mx);
-  tmp[3] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  for (int i = 0; i < 4; ++i)
-    state[i][0] = tmp[i];
-
-  // second column
-  a = GF256_mult(state[0][1], 0x02, mx);
-  b = GF256_mult(state[1][1], 0x03, mx);
-  c = GF256_mult(state[2][1], 0x01, mx);
-  d = GF256_mult(state[3][1], 0x01, mx);
-  tmp[0] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  a = GF256_mult(state[0][1], 0x01, mx);
-  b = GF256_mult(state[1][1], 0x02, mx);
-  c = GF256_mult(state[2][1], 0x03, mx);
-  d = GF256_mult(state[3][1], 0x01, mx);
-  tmp[1] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  a = GF256_mult(state[0][1], 0x01, mx);
-  b = GF256_mult(state[1][1], 0x01, mx);
-  c = GF256_mult(state[2][1], 0x02, mx);
-  d = GF256_mult(state[3][1], 0x03, mx);
-  tmp[2] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  a = GF256_mult(state[0][1], 0x03, mx);
-  b = GF256_mult(state[1][1], 0x01, mx);
-  c = GF256_mult(state[2][1], 0x01, mx);
-  d = GF256_mult(state[3][1], 0x02, mx);
-  tmp[3] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  for (int i = 0; i < 4; ++i)
-    state[i][1] = tmp[i];
-
-  // third column
-  a = GF256_mult(state[0][2], 0x02, mx);
-  b = GF256_mult(state[1][2], 0x03, mx);
-  c = GF256_mult(state[2][2], 0x01, mx);
-  d = GF256_mult(state[3][2], 0x01, mx);
-  tmp[0] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  a = GF256_mult(state[0][2], 0x01, mx);
-  b = GF256_mult(state[1][2], 0x02, mx);
-  c = GF256_mult(state[2][2], 0x03, mx);
-  d = GF256_mult(state[3][2], 0x01, mx);
-  tmp[1] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  a = GF256_mult(state[0][2], 0x01, mx);
-  b = GF256_mult(state[1][2], 0x01, mx);
-  c = GF256_mult(state[2][2], 0x02, mx);
-  d = GF256_mult(state[3][2], 0x03, mx);
-  tmp[2] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  a = GF256_mult(state[0][2], 0x03, mx);
-  b = GF256_mult(state[1][2], 0x01, mx);
-  c = GF256_mult(state[2][2], 0x01, mx);
-  d = GF256_mult(state[3][2], 0x02, mx);
-  tmp[3] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  for (int i = 0; i < 4; ++i)
-    state[i][2] = tmp[i];
-
-  // last column
-  a = GF256_mult(state[0][3], 0x02, mx);
-  b = GF256_mult(state[1][3], 0x03, mx);
-  c = GF256_mult(state[2][3], 0x01, mx);
-  d = GF256_mult(state[3][3], 0x01, mx);
-  tmp[0] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  a = GF256_mult(state[0][3], 0x01, mx);
-  b = GF256_mult(state[1][3], 0x02, mx);
-  c = GF256_mult(state[2][3], 0x03, mx);
-  d = GF256_mult(state[3][3], 0x01, mx);
-  tmp[1] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  a = GF256_mult(state[0][3], 0x01, mx);
-  b = GF256_mult(state[1][3], 0x01, mx);
-  c = GF256_mult(state[2][3], 0x02, mx);
-  d = GF256_mult(state[3][3], 0x03, mx);
-  tmp[2] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  a = GF256_mult(state[0][3], 0x03, mx);
-  b = GF256_mult(state[1][3], 0x01, mx);
-  c = GF256_mult(state[2][3], 0x01, mx);
-  d = GF256_mult(state[3][3], 0x02, mx);
-  tmp[3] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
-  for (int i = 0; i < 4; ++i)
-    state[i][3] = tmp[i];
-
+  for (int col = 0; col < 4; ++col) {
+    a = GF256_mult(state[0][col], 0x02, mx);
+    b = GF256_mult(state[1][col], 0x03, mx);
+    c = GF256_mult(state[2][col], 0x01, mx);
+    d = GF256_mult(state[3][col], 0x01, mx);
+    tmp[0] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
+    a = GF256_mult(state[0][col], 0x01, mx);
+    b = GF256_mult(state[1][col], 0x02, mx);
+    c = GF256_mult(state[2][col], 0x03, mx);
+    d = GF256_mult(state[3][col], 0x01, mx);
+    tmp[1] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
+    a = GF256_mult(state[0][col], 0x01, mx);
+    b = GF256_mult(state[1][col], 0x01, mx);
+    c = GF256_mult(state[2][col], 0x02, mx);
+    d = GF256_mult(state[3][col], 0x03, mx);
+    tmp[2] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
+    a = GF256_mult(state[0][col], 0x03, mx);
+    b = GF256_mult(state[1][col], 0x01, mx);
+    c = GF256_mult(state[2][col], 0x01, mx);
+    d = GF256_mult(state[3][col], 0x02, mx);
+    tmp[3] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
+    for (int i = 0; i < 4; ++i)
+      state[i][col] = tmp[i];
+  }
   delete[] tmp;
 }
 
