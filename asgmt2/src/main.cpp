@@ -2,14 +2,32 @@
 
 using namespace std;
 
-#define printHex(x) printf("%02x\n", x);
+#define printHex(x) printf("%02x", x);
 
-// number of rounds
-const int Nr = 10;
-// number of columns of Cipher Key
-const int Nk = 4;
-// block length divided by 32
-const int Nb = 4;
+const int Nr = 10;  // number of rounds
+const int Nk = 4;  // number of columns in key
+const int Nb = 4;  // number of columns in state
+const uint8_t transform_matrix[] = {  // matrix for ByteSub
+  1, 0, 0, 0, 1, 1, 1, 1,
+  1, 1, 0, 0, 0, 1, 1, 1,
+  1, 1, 1, 0, 0, 0, 1, 1,
+  1, 1, 1, 1, 0, 0, 0, 1,
+  1, 1, 1, 1, 1, 0, 0, 0,
+  0, 1, 1, 1, 1, 1, 0, 0,
+  0, 0, 1, 1, 1, 1, 1, 0,
+  0, 0, 0, 1, 1, 1, 1, 1
+};
+
+void printState(int r, uint8_t **state) {
+  cout << "Round " << r << ":" << endl;
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < Nb; ++j) {
+      printHex(state[i][j]);
+      if (!(i == 3 && j == 3)) cout << " ";
+      else cout << endl;
+    }
+  }
+}
 
 uint8_t GF256_add(uint8_t a, uint8_t b, uint8_t mx) {
   return (a + b) ^ mx;
@@ -36,7 +54,7 @@ uint8_t GF256_mult(uint8_t a, uint8_t b, uint8_t mx) {
 
 uint8_t GF256_inv(uint8_t a, uint8_t mx) {
   uint16_t t0 = 0, t1 = 1;
-  uint16_t r0 = 0x11B, r1 = a;
+  uint16_t r0 = 0x11b, r1 = a;
 
   while (r1 != 0) {
     int8_t q, l0 = 0, l1 = 0;
@@ -57,17 +75,30 @@ uint8_t GF256_inv(uint8_t a, uint8_t mx) {
     t0 = t1;
     t1 = tmp ^ (t1 << q);
   }
-  if (t0 >= 0x100) t0 ^= 0x11B;
+  if (t0 >= 0x100) t0 ^= 0x11b;
   return t0;
 }
 
-void AddRoundKey(uint8_t **state, uint8_t *key) {
-  for (int i= 0; i < 4; ++i)
-    for (int j = 0; j < Nb; ++j)
-      state[i][j] ^= key[i + 4 * j];
+uint8_t AffineTransform(uint8_t x) {
+  uint8_t y = 0x63;
+  uint8_t inv_x = GF256_inv(x, 0x1b);
+  for (int x_idx = 0; x_idx < 8; ++x_idx) {
+    if (x & (1 << x_idx)) {
+      for (int y_idx = 0; y_idx < 8; ++y_idx)
+        if (transform_matrix[x_idx + 8 * y_idx])
+          y ^= (1 << y_idx);
+    }
+  }
+  return y;
 }
 
-void ShiftRows(uint8_t **state) {
+void AddRoundKey(uint8_t **state, uint8_t *round_key) {
+  for (int i= 0; i < 4; ++i)
+    for (int j = 0; j < Nb; ++j)
+      state[i][j] ^= round_key[i + 4 * j];
+}
+
+void ShiftRow(uint8_t **state) {
   uint8_t *tmp = new uint8_t[Nb];
   int C1, C2, C3;
   switch(Nb) {
@@ -99,6 +130,12 @@ void ShiftRows(uint8_t **state) {
   memcpy(state[3], tmp, Nb * sizeof(uint8_t));
 
   delete[] tmp;
+}
+
+void ByteSub(uint8_t **state) {
+  for (int i = 0; i < 4; ++i)
+    for (int j = 0; j < Nb; ++j)
+      state[i][j] = AffineTransform(state[i][j]);
 }
 
 void MixColumns(uint8_t **state) {
