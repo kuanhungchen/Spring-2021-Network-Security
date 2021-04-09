@@ -83,7 +83,7 @@ uint8_t AffineTransform(uint8_t x) {
   uint8_t y = 0x63;
   uint8_t inv_x = GF256_inv(x, 0x1b);
   for (int x_idx = 0; x_idx < 8; ++x_idx) {
-    if (x & (1 << x_idx)) {
+    if (inv_x & (1 << x_idx)) {
       for (int y_idx = 0; y_idx < 8; ++y_idx)
         if (transform_matrix[x_idx + 8 * y_idx])
           y ^= (1 << y_idx);
