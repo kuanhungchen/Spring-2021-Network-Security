@@ -127,7 +127,7 @@ void ByteSub(uint8_t **state) {
 
 void MixColumns(uint8_t **state) {
   uint8_t *tmp = new uint8_t[4];
-  uint8_t a, b, c, d, mx=0x1b;
+  uint8_t a, b, c, d, mx = 0x1b;
 
   for (int col = 0; col < 4; ++col) {
     a = GF256_mult(state[0][col], 0x02, mx);
@@ -175,15 +175,133 @@ void Rcon(uint8_t *rcon, int r) {
   rcon[1] = rcon[2] = rcon[3] = 0;
 }
 
+void XORWords(uint8_t *src1, uint8_t *src2, uint8_t *des) {
+  for (int i = 0; i < 4; ++i)
+    des[i] = src1[i] ^ src2[i];
+}
 
-void AES_Encrypt(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *Key);
+void KeyExpand(uint8_t *Key, uint8_t *RoundKeys) {
+  uint8_t *tmp = new uint8_t [4 * sizeof(uint8_t)];
+  uint8_t *rcon = new uint8_t [4 * sizeof(uint8_t)];
+
+  // first round: generate round key by original key
+  for (int i = 0; i < 4; ++i)
+    tmp[i] = Key[12 + i];
+
+  RotWord(tmp);
+  SubWord(tmp);
+  Rcon(rcon, 1);
+  XORWords(tmp, rcon, tmp);
+
+  XORWords(Key, tmp, RoundKeys);
+  XORWords(Key + 4 * sizeof(uint8_t),
+          RoundKeys, RoundKeys + 4 * sizeof(uint8_t));
+  XORWords(Key + 8 * sizeof(uint8_t),
+          RoundKeys + 4 * sizeof(uint8_t), RoundKeys + 8 * sizeof(uint8_t));
+  XORWords(Key + 12 * sizeof(uint8_t),
+          RoundKeys + 8 * sizeof(uint8_t), RoundKeys + 12 * sizeof(uint8_t));
+
+  // remaining rounds: generate round key by previous one
+  for (int r = 2; r <= Nr; ++r) {
+    for (int i = 0; i < 4; ++i)
+      tmp[i] = RoundKeys[(r - 1 - 1) * 16 + 12 + i];
+
+    RotWord(tmp);
+    SubWord(tmp);
+    Rcon(rcon, r);
+    XORWords(tmp, rcon, tmp);
+
+    XORWords(RoundKeys + ((r - 1 - 1) * 16) * sizeof(uint8_t),
+            tmp, RoundKeys + ((r - 1) * 16) * sizeof(uint8_t));
+    XORWords(RoundKeys + (4 + (r - 1 - 1) * 16) * sizeof(uint8_t),
+            RoundKeys + ((r - 1) * 16),
+            RoundKeys + (4 + (r - 1) * 16) * sizeof(uint8_t));
+    XORWords(RoundKeys + (8 + (r - 1 - 1) * 16) * sizeof(uint8_t),
+            RoundKeys + (4 + (r - 1) * 16),
+            RoundKeys + (8 + (r - 1) * 16) * sizeof(uint8_t));
+    XORWords(RoundKeys + (12 + (r - 1 - 1) * 16) * sizeof(uint8_t),
+            RoundKeys + (8 + (r - 1) * 16),
+            RoundKeys + (12 + (r - 1) * 16) * sizeof(uint8_t));
+  }
+  delete[] rcon;
+  delete[] tmp;
+}
+
+void AES_Encrypt_Round(uint8_t **state, uint8_t *RoundKey) {
+  ByteSub(state);
+  ShiftRow(state);
+  MixColumns(state);
+  AddRoundKey(state, RoundKey);
+}
+
+void AES_Encrypt_Final(uint8_t **state, uint8_t *RoundKey) {
+  ByteSub(state);
+  ShiftRow(state);
+  AddRoundKey(state, RoundKey);
+}
+
+void AES_Encrypt(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *Key) {
+  // dump plain text to state
+  uint8_t **state = new uint8_t *[4];
+  state[0] = new uint8_t [4 * Nb];
+  for (int i = 1; i < 4; ++i)
+    state[i] = state[i - 1] + Nb;
+  for (int i = 0; i < 4; ++i)
+    for (int j = 0; j < Nb; ++j)
+      state[i][j] = Plaintext[i + j * 4];
+
+  // key expansion, generate (Nk * Nr) words round keys from original key
+  uint8_t *RoundKeys = new uint8_t[Nk * Nr * 4 * sizeof(uint8_t)];
+  KeyExpand(Key, RoundKeys);
+
+  // actual encryption
+  AddRoundKey(state, Key);
+  for (int r = 1; r < Nr; ++r) {
+    AES_Encrypt_Round(state, RoundKeys + (r - 1) * Nk * 4 * sizeof(uint8_t));
+    printState(r, state);
+  }
+  AES_Encrypt_Final(state, RoundKeys + (Nr - 1) * Nk * 4 * sizeof(uint8_t));
+  printState(Nr, state);
+
+  // dump state to cipher text
+  for (int i = 0; i < 4; ++i)
+    for (int j = 0; j < Nb; ++j)
+      Ciphertext[i + j * 4] = state[i][j];
+
+  delete[] state[0];
+  delete[] state;
+}
+
 void AES_Decrypt(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *Key);
 
 int main(int argc, const char * argv[]) {
+  uint8_t plain[] = {0x6e, 0x33, 0x54, 0x77, 0x30, 0x34, 0x6b, 0x5f,
+                     0x35, 0x65, 0x43, 0x75, 0x72, 0x31, 0x54, 0x79};
+  uint8_t key[] = {0x78, 0x68, 0x6f, 0x74, 0xab, 0x20, 0x6d, 0x65,
+                   0x20, 0x3e, 0x75, 0x6e, 0x67, 0x20, 0xd6, 0x7c};
 
-  uint8_t a = 0x95;
-  printHex(GF256_inv(a, 0x1B));
-  printHex(GF256_mult(0x95, GF256_inv(0x95, 0x1B), 0x1B));
+  uint8_t *cipher = new uint8_t [16 * sizeof(uint8_t)];
+  cout << "PlainText:" << endl;
+  for (int i = 0; i < 16; ++i) {
+    printHex(plain[i]);
+    if (i != 15) cout << " ";
+  }
+  cout << endl;
+  cout << "Key:" << endl;
+  for (int i = 0; i < 16; ++i) {
+    printHex(key[i]);
+    if (i != 15) cout << " ";
+  }
+  cout << endl;
+
+  AES_Encrypt(plain, cipher, key);
+
+  cout << "CipherText:" << endl;
+  for (int i = 0; i < 16; ++i) {
+    printHex(cipher[i]);
+    if (i != 15) cout << " ";
+  }
+  cout << endl;
 
   return 0;
 }
