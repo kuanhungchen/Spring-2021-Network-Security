@@ -100,20 +100,7 @@ void AddRoundKey(uint8_t **state, uint8_t *round_key) {
 
 void ShiftRow(uint8_t **state) {
   uint8_t *tmp = new uint8_t[Nb];
-  int C1, C2, C3;
-  switch(Nb) {
-    case 4:
-      C1 = 1; C2 = 2; C3 = 3;
-      break;
-    case 6:
-      C1 = 1; C2 = 2; C3 = 3;
-      break;
-    case 8:
-      C1 = 1; C2 = 3; C3 = 4;
-      break;
-    default:
-      break;
-  }
+  int C1 = 1, C2 = 2, C3 = 3;
 
   // first row doesn't shift
   // second row shift by C1 bytes
@@ -147,22 +134,22 @@ void MixColumns(uint8_t **state) {
     b = GF256_mult(state[1][col], 0x03, mx);
     c = GF256_mult(state[2][col], 0x01, mx);
     d = GF256_mult(state[3][col], 0x01, mx);
-    tmp[0] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
+    tmp[0] = a ^ b ^ c ^ d;
     a = GF256_mult(state[0][col], 0x01, mx);
     b = GF256_mult(state[1][col], 0x02, mx);
     c = GF256_mult(state[2][col], 0x03, mx);
     d = GF256_mult(state[3][col], 0x01, mx);
-    tmp[1] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
+    tmp[1] = a ^ b ^ c ^ d;
     a = GF256_mult(state[0][col], 0x01, mx);
     b = GF256_mult(state[1][col], 0x01, mx);
     c = GF256_mult(state[2][col], 0x02, mx);
     d = GF256_mult(state[3][col], 0x03, mx);
-    tmp[2] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
+    tmp[2] = a ^ b ^ c ^ d;
     a = GF256_mult(state[0][col], 0x03, mx);
     b = GF256_mult(state[1][col], 0x01, mx);
     c = GF256_mult(state[2][col], 0x01, mx);
     d = GF256_mult(state[3][col], 0x02, mx);
-    tmp[3] = GF256_add(a, GF256_add(b, GF256_add(c, d, mx), mx), mx);
+    tmp[3] = a ^ b ^ c ^ d;
     for (int i = 0; i < 4; ++i)
       state[i][col] = tmp[i];
   }
