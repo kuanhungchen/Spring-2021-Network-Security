@@ -2,7 +2,7 @@
 
 using namespace std;
 
-#define printHex(x) printf("%02x", x);
+#define printHex(x) printf("0x%02x", x);
 
 const int Nr = 10;  // number of rounds
 const int Nk = 4;  // number of columns in key
@@ -22,7 +22,7 @@ void printState(int r, uint8_t **state) {
   cout << "Round " << r << ":" << endl;
   for (int i = 0; i < 4; ++i) {
     for (int j = 0; j < Nb; ++j) {
-      printHex(state[i][j]);
+      printHex(state[j][i]);
       if (!(i == 3 && j == 3)) cout << " ";
       else cout << endl;
     }
