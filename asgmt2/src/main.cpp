@@ -63,6 +63,7 @@ uint8_t GF256_mult(uint8_t a, uint8_t b, uint8_t mx) {
 }
 
 uint8_t GF256_inv(uint8_t a, uint8_t mx) {
+  /* Use Extended Euclidean Algorithm to compute multiplicative inverse. */
   uint16_t t0 = 0, t1 = 1;
   uint16_t r0 = 0x11b, r1 = a;
 
@@ -90,10 +91,10 @@ uint8_t GF256_inv(uint8_t a, uint8_t mx) {
 }
 
 uint8_t AffineTransform(uint8_t x) {
-  uint8_t y = 0x63;
-  uint8_t inv_x = GF256_inv(x, 0x1b);
+  uint8_t y = 0x63;  // 01100011 = 0x63
+  x = GF256_inv(x, 0x1b);
   for (int x_idx = 0; x_idx < 8; ++x_idx) {
-    if (inv_x & (1 << x_idx)) {
+    if (x & (1 << x_idx)) {
       for (int y_idx = 0; y_idx < 8; ++y_idx)
         if (transform_matrix[x_idx + 8 * y_idx])
           y ^= (1 << y_idx);
@@ -127,23 +128,45 @@ void ShiftRow(uint8_t **state) {
   int C1 = 1, C2 = 2, C3 = 3;
 
   // first row doesn't shift
-  // second row shift by C1 bytes
+  // second row shift left by C1 bytes
   for (int i = 0; i < Nb; ++i)
     tmp[i] = state[1][(i + C1) % Nb];
-  memcpy(state[1], tmp, Nb * sizeof(uint8_t));
-  // third row shift by C2 bytes
+  for (int i = 0; i < Nb; ++i) state[1][i] = tmp[i];
+  // third row shift left by C2 bytes
   for (int i = 0; i < Nb; ++i)
     tmp[i] = state[2][(i + C2) % Nb];
-  memcpy(state[2], tmp, Nb * sizeof(uint8_t));
-  // last row shift by C3 bytes
+  for (int i = 0; i < Nb; ++i) state[2][i] = tmp[i];
+  // last row shift left by C3 bytes
   for (int i = 0; i < Nb; ++i)
     tmp[i] = state[3][(i + C3) % Nb];
-  memcpy(state[3], tmp, Nb * sizeof(uint8_t));
+  for (int i = 0; i < Nb; ++i) state[3][i] = tmp[i];
+
+  delete[] tmp;
+}
+
+void InvShiftRow(uint8_t **state) {
+  uint8_t *tmp = new uint8_t[Nb];
+  int C1 = 1, C2 = 2, C3 = 3;
+
+  // first row doesn't shift
+  // second row shift right by C1 bytes
+  for (int i = 0; i < Nb; ++i)
+    tmp[i] = state[1][(i + (Nb - C1)) % Nb];
+  for (int i = 0; i < Nb; ++i) state[1][i] = tmp[i];
+  // third row shift right by C2 bytes
+  for (int i = 0; i < Nb; ++i)
+    tmp[i] = state[2][(i + (Nb - C2)) % Nb];
+  for (int i = 0; i < Nb; ++i) state[2][i] = tmp[i];
+  // last row shift right by C3 bytes
+  for (int i = 0; i < Nb; ++i)
+    tmp[i] = state[3][(i + (Nb - C3)) % Nb];
+  for (int i = 0; i < Nb; ++i) state[3][i] = tmp[i];
 
   delete[] tmp;
 }
 
 void ByteSub(uint8_t **state) {
+  /* Use Affine Transform instead of table look-ups. */
   for (int i = 0; i < 4; ++i)
     for (int j = 0; j < Nb; ++j)
       state[i][j] = AffineTransform(state[i][j]);
@@ -225,6 +248,7 @@ void RotWord(uint8_t *word) {
 }
 
 void SubWord(uint8_t *word) {
+  /* Use Affine Transform instead of table look-ups. */
   for (int i = 0; i < 4; ++i)
     word[i] = AffineTransform(word[i]);
 }
@@ -243,10 +267,11 @@ void XORWords(uint8_t *src1, uint8_t *src2, uint8_t *des) {
 }
 
 void KeyExpand(uint8_t *Key, uint8_t *RoundKeys) {
-  uint8_t *tmp = new uint8_t [4 * sizeof(uint8_t)];
-  uint8_t *rcon = new uint8_t [4 * sizeof(uint8_t)];
+  /* Generate (Nk x Nr) words round keys by original 4 words key. */
+  uint8_t *tmp = new uint8_t[4 * sizeof(uint8_t)];
+  uint8_t *rcon = new uint8_t[4 * sizeof(uint8_t)];
 
-  // first round: generate round key by original key
+  // first round: generated from original key
   for (int i = 0; i < 4; ++i)
     tmp[i] = Key[12 + i];
 
@@ -263,7 +288,7 @@ void KeyExpand(uint8_t *Key, uint8_t *RoundKeys) {
   XORWords(Key + 12 * sizeof(uint8_t),
           RoundKeys + 8 * sizeof(uint8_t), RoundKeys + 12 * sizeof(uint8_t));
 
-  // remaining rounds: generate round key by previous one
+  // remaining rounds: generated from previous round
   for (int r = 2; r <= Nr; ++r) {
     for (int i = 0; i < 4; ++i)
       tmp[i] = RoundKeys[(r - 1 - 1) * 16 + 12 + i];
@@ -316,8 +341,10 @@ void AES_Decrypt_Final(uint8_t **state, uint8_t *RoundKey) {
 }
 
 void AES_Encrypt(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *Key) {
+  /* Actual function to perform AES encryption. */
+
   // dump plain text to state
-  uint8_t **state = new uint8_t *[4];
+  uint8_t **state = new uint8_t*[4];
   state[0] = new uint8_t [4 * Nb];
   for (int i = 1; i < 4; ++i)
     state[i] = state[i - 1] + Nb;
@@ -325,11 +352,11 @@ void AES_Encrypt(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *Key) {
     for (int j = 0; j < Nb; ++j)
       state[i][j] = Plaintext[i + j * 4];
 
-  // key expansion, generate (Nk * Nr) words round keys from original key
+  // key expansion
   uint8_t *RoundKeys = new uint8_t[Nk * Nr * 4 * sizeof(uint8_t)];
   KeyExpand(Key, RoundKeys);
 
-  // actual encryption
+  // Nr rounds encryption
   AddRoundKey(state, Key);
   for (int r = 1; r < Nr; ++r) {
     AES_Encrypt_Round(state, RoundKeys + (r - 1) * Nk * 4 * sizeof(uint8_t));
