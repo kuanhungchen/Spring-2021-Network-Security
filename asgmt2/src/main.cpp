@@ -17,6 +17,16 @@ const uint8_t transform_matrix[] = {  // matrix for ByteSub
   0, 0, 1, 1, 1, 1, 1, 0,
   0, 0, 0, 1, 1, 1, 1, 1
 };
+const uint8_t inv_transform_matrix[] = {  // matrix for InvByteSub
+  0, 0, 1, 0, 0, 1, 0, 1,
+  1, 0, 0, 1, 0, 0, 1, 0,
+  0, 1, 0, 0, 1, 0, 0, 1,
+  1, 0, 1, 0, 0, 1, 0, 0,
+  0, 1, 0, 1, 0, 0, 1, 0,
+  0, 0, 1, 0, 1, 0, 0, 1,
+  1, 0, 0, 1, 0, 1, 0, 0,
+  0, 1, 0, 0, 1, 0, 1, 0
+};
 
 void printState(int r, uint8_t **state) {
   cout << "Round " << r << ":" << endl;
@@ -92,6 +102,20 @@ uint8_t AffineTransform(uint8_t x) {
   return y;
 }
 
+uint8_t InvAffineTransform(uint8_t x) {
+  uint8_t y = 0;
+  for (int i = 0; i < 8; ++i)
+    x ^= (0x63 & (1 << i));
+  for (int x_idx = 0; x_idx < 8; ++x_idx) {
+    if (x & (1 << x_idx)) {
+      for (int y_idx = 0; y_idx < 8; ++y_idx)
+        if (inv_transform_matrix[x_idx + 8 * y_idx])
+          y ^= (1 << y_idx);
+    }
+  }
+  return GF256_inv(y, 0x1b);
+}
+
 void AddRoundKey(uint8_t **state, uint8_t *round_key) {
   for (int i= 0; i < 4; ++i)
     for (int j = 0; j < Nb; ++j)
@@ -125,6 +149,13 @@ void ByteSub(uint8_t **state) {
       state[i][j] = AffineTransform(state[i][j]);
 }
 
+void InvByteSub(uint8_t **state) {
+  /* Use Affine Transform instead of table look-ups. */
+  for (int i = 0; i < 4; ++i)
+    for (int j = 0; j < Nb; ++j)
+      state[i][j] = InvAffineTransform(state[i][j]);
+}
+
 void MixColumns(uint8_t **state) {
   uint8_t *tmp = new uint8_t[4];
   uint8_t a, b, c, d, mx = 0x1b;
@@ -149,6 +180,37 @@ void MixColumns(uint8_t **state) {
     b = GF256_mult(state[1][col], 0x01, mx);
     c = GF256_mult(state[2][col], 0x01, mx);
     d = GF256_mult(state[3][col], 0x02, mx);
+    tmp[3] = a ^ b ^ c ^ d;
+    for (int i = 0; i < 4; ++i)
+      state[i][col] = tmp[i];
+  }
+  delete[] tmp;
+}
+
+void InvMixColumns(uint8_t **state) {
+  uint8_t *tmp = new uint8_t[4];
+  uint8_t a, b, c, d, mx = 0x1b;
+
+  for (int col = 0; col < 4; ++col) {
+    a = GF256_mult(state[0][col], 0x0e, mx);
+    b = GF256_mult(state[1][col], 0x0b, mx);
+    c = GF256_mult(state[2][col], 0x0d, mx);
+    d = GF256_mult(state[3][col], 0x09, mx);
+    tmp[0] = a ^ b ^ c ^ d;
+    a = GF256_mult(state[0][col], 0x09, mx);
+    b = GF256_mult(state[1][col], 0x0e, mx);
+    c = GF256_mult(state[2][col], 0x0b, mx);
+    d = GF256_mult(state[3][col], 0x0d, mx);
+    tmp[1] = a ^ b ^ c ^ d;
+    a = GF256_mult(state[0][col], 0x0d, mx);
+    b = GF256_mult(state[1][col], 0x09, mx);
+    c = GF256_mult(state[2][col], 0x0e, mx);
+    d = GF256_mult(state[3][col], 0x0b, mx);
+    tmp[2] = a ^ b ^ c ^ d;
+    a = GF256_mult(state[0][col], 0x0b, mx);
+    b = GF256_mult(state[1][col], 0x0d, mx);
+    c = GF256_mult(state[2][col], 0x09, mx);
+    d = GF256_mult(state[3][col], 0x0e, mx);
     tmp[3] = a ^ b ^ c ^ d;
     for (int i = 0; i < 4; ++i)
       state[i][col] = tmp[i];
@@ -240,6 +302,19 @@ void AES_Encrypt_Final(uint8_t **state, uint8_t *RoundKey) {
   AddRoundKey(state, RoundKey);
 }
 
+void AES_Decrypt_Round(uint8_t **state, uint8_t *RoundKey) {
+  InvShiftRow(state);
+  InvByteSub(state);
+  AddRoundKey(state, RoundKey);
+  InvMixColumns(state);
+}
+
+void AES_Decrypt_Final(uint8_t **state, uint8_t *RoundKey) {
+  InvShiftRow(state);
+  InvByteSub(state);
+  AddRoundKey(state, RoundKey);
+}
+
 void AES_Encrypt(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *Key) {
   // dump plain text to state
   uint8_t **state = new uint8_t *[4];
@@ -272,33 +347,75 @@ void AES_Encrypt(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *Key) {
   delete[] state;
 }
 
-void AES_Decrypt(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *Key);
+void AES_Decrypt(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *Key) {
+  /* Actual function to perform AES decryption. */
+
+  // dump cipher text to state
+  uint8_t **state = new uint8_t*[4];
+  state[0]= new uint8_t [4 * Nb];
+  for (int i = 1; i < 4; ++i)
+    state[i] = state[i - 1] + Nb;
+  for (int i = 0; i < 4; ++i)
+    for (int j = 0; j < Nb; ++j)
+      state[i][j] = Ciphertext[i + j * 4];
+
+  // key expansion
+  uint8_t *RoundKeys = new uint8_t[Nk * Nr * 4 * sizeof(uint8_t)];
+  KeyExpand(Key, RoundKeys);
+
+  // Nr rounds decryption
+  AddRoundKey(state, RoundKeys + (Nr - 1) * Nk * 4 * sizeof(uint8_t));
+  for (int r = Nr - 1; r > 0; --r) {
+    AES_Decrypt_Round(state, RoundKeys + (r - 1) * Nk * 4 * sizeof(uint8_t));
+    printState(Nr - r, state);
+  }
+  AES_Decrypt_Final(state, Key);
+  printState(Nr, state);
+
+  // dump state to plain text
+  for (int i = 0; i < 4; ++i)
+    for (int j = 0; j < 4; ++j)
+      Plaintext[i + j * 4] = state[i][j];
+
+  delete[] state[0];
+  delete[] state;
+}
 
 int main(int argc, const char * argv[]) {
-  uint8_t plain[] = {0x6e, 0x33, 0x54, 0x77, 0x30, 0x34, 0x6b, 0x5f,
-                     0x35, 0x65, 0x43, 0x75, 0x72, 0x31, 0x54, 0x79};
-  uint8_t key[] = {0x78, 0x68, 0x6f, 0x74, 0xab, 0x20, 0x6d, 0x65,
-                   0x20, 0x3e, 0x75, 0x6e, 0x67, 0x20, 0xd6, 0x7c};
+  string a, b;
+  uint8_t *key = new uint8_t[16 * sizeof(uint8_t)];
+  uint8_t *plaintext = new uint8_t[16 * sizeof(uint8_t)];
+  uint8_t *ciphertext = new uint8_t[16 * sizeof(uint8_t)];
+  uint8_t *decrypted = new uint8_t[16 * sizeof(uint8_t)];
 
-  uint8_t *cipher = new uint8_t [16 * sizeof(uint8_t)];
-  cout << "PlainText:" << endl;
-  for (int i = 0; i < 16; ++i) {
-    printHex(plain[i]);
-    if (i != 15) cout << " ";
-  }
-  cout << endl;
-  cout << "Key:" << endl;
-  for (int i = 0; i < 16; ++i) {
-    printHex(key[i]);
-    if (i != 15) cout << " ";
-  }
+  // parse key and plain text from input
+  cout << "KEY:" << endl;
+  getline(cin, a);
+  for (int i = 0; i < 16; ++i)
+    key[i] = strtol(a.substr(i * 5, 4).c_str(), 0, 16);
   cout << endl;
 
-  AES_Encrypt(plain, cipher, key);
+  cout << "Enter plaintext to encrypt:" << endl;
+  getline(cin, b);
+  for (int i = 0; i < 16; ++i)
+    plaintext[i] = strtol(b.substr(i * 5, 4).c_str(), 0, 16);
 
+  // run AES encryption
+  AES_Encrypt(plaintext, ciphertext, key);
   cout << "CipherText:" << endl;
   for (int i = 0; i < 16; ++i) {
-    printHex(cipher[i]);
+    printHex(ciphertext[i]);
+    if (i != 15) cout << " ";
+  }
+  cout << endl;
+  cout << endl;
+
+  // run AES decryption
+  cout << "Decryption:" << endl;
+  AES_Decrypt(decrypted, ciphertext, key);
+  cout << "Decrypted message in hex:" << endl;
+  for (int i = 0; i < 16; ++i) {
+    printHex(decrypted[i]);
     if (i != 15) cout << " ";
   }
   cout << endl;
