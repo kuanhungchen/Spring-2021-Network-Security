@@ -94,11 +94,12 @@ class BigNumber {
     BigNumber operator+(const BigNumber&);
     BigNumber operator-(const BigNumber&);
     BigNumber operator*(const BigNumber&);
-    BigNumber operator/(BigNumber&);  // modify itself to represent remainder
-    BigNumber operator%(const BigNumber&);
+    /* BigNumber operator/(BigNumber&);  // modify itself to represent remainder */
+    /* BigNumber operator%(const BigNumber&); */
     BigNumber& operator-=(const BigNumber&);  // prevent re-instancialize
     BigNumber& operator*=(const BigNumber&);
-    BigNumber& operator%=(BigNumber&);
+    BigNumber& operator/=(const BigNumber&);
+    BigNumber& operator%=(const BigNumber&);
 
     // helper functions
     void random(const int);
@@ -106,7 +107,7 @@ class BigNumber {
     void print() const;
     void rotate_left(const int);
     void rotate_right(const int);
-    BigNumber div_and_mod(BigNumber&);  // divide and modulo can be calculated at the same time
+    /* BigNumber div_and_mod(BigNumber&);  // divide and modulo can be calculated at the same time */
     bool is_even();
     int get_len() {return this->_len;}
     char get_bit(const int i) {return this->_array[i];}
@@ -174,8 +175,8 @@ bool BigNumber::operator==(const BigNumber &target) {
     res = false;
   } else {
     int i;
-    for (i = this->_len; i > 0 && this->_array[i - 1] == target._array[i - 1]; --i);
-    res = (i == 0);
+    for (i = this->_len - 1; i >= 0 && this->_array[i] == target._array[i]; --i);
+    res = (i == -1);
   }
   return res;
 }
@@ -272,13 +273,13 @@ BigNumber BigNumber::operator*(const BigNumber &target) {
   return product;
 }
 
-BigNumber BigNumber::operator/(BigNumber &target) {
-  return this->div_and_mod(target);  // use helper function to calculate both division and modulo
-}
+/* BigNumber BigNumber::operator/(BigNumber &target) { */
+/*   return this->div_and_mod(target);  // use helper function to calculate both division and modulo */
+/* } */
 
-BigNumber BigNumber::operator%(const BigNumber &target) {
-  return *this;  // after division, the original a has become remainder
-}
+/* BigNumber BigNumber::operator%(const BigNumber &target) { */
+/*   return *this;  // after division, the original a has become remainder */
+/* } */
 
 BigNumber& BigNumber::operator-=(const BigNumber &target) {
   /* a subtraction helper function to prevent re-instancialize */
@@ -356,35 +357,71 @@ BigNumber& BigNumber::operator*=(const BigNumber &target) {
   return *this;
 }
 
-BigNumber modular_exp(BigNumber &a, BigNumber &m, BigNumber &n) {
+BigNumber modular_exp(const BigNumber &a, const BigNumber &m,
+                      const BigNumber &n) {
   /* Compute y = (a ^ m) % n */
   BigNumber y("1");
-  while (!(m.get_len() == 1 && m.get_bit(0) == '0')) {
-    while (m.get_bit(0) != '0') {
-      if (HEX2DEC(m.get_bit(0)) % 2 == 1) {
-        y *= a;
-        m.last_bit_minus();
-      } else {
-        y *= y;
-        m.last_bit_divide();
-      }
+  BigNumber a_copy, m_copy;
+  a_copy.copy(a);
+  m_copy.copy(m);
+  while (!(m_copy.get_len() == 1 && m_copy.get_bit(0) == '0')) {
+    for (int i = 0; i < HEX2DEC(m_copy.get_bit(0)); ++i) {
+      y *= a_copy;
       y %= n;
-
     }
     for (int i = 0; i < 4; ++i) {
-      a *= a;
-      a %= n;
+      a_copy *= a_copy;
+      a_copy %= n;
     }
 
-    m.rotate_right(1);
-    m.len_minus();
+    m_copy.rotate_right(1);
+    m_copy.len_minus();
   }
   return y;
 }
 
-BigNumber& BigNumber::operator%=(BigNumber &target) {
+BigNumber& BigNumber::operator/=(const BigNumber &target) {
+  bool new_sign = this->_sign ^ target._sign;
+  int new_len;
+  char quotient_array[N];
+  for (int i = N - 1; i >= 0; --i)  quotient_array[i] = '0';
   BigNumber target_copy;
   target_copy.copy(target);
+  int cur_len = this->_len - target_copy._len;
+  target_copy.rotate_left(cur_len);  // make divisor same length with dividend
+  target_copy._len = min(N, target_copy._len + cur_len);
+  for (int cur_val = 0; cur_len >= 0; --cur_len, cur_val = 0) {
+    while (*this > target_copy || *this == target_copy) {
+      // if divisor is less than dividend, add 1 to the current position in the quotient
+      ++cur_val;
+      *this -= target_copy;
+    }
+    quotient_array[cur_len] = DEC2HEX(cur_val);
+    target_copy.rotate_right(1);  // each iteration, divisor is 16 times less than previous iteration
+    target_copy._len = max(0, target_copy._len - 1);
+  }
+
+  // find new length
+  int i;
+  for (i = N - 1; i >= 0 && quotient_array[i] == '0'; --i);
+  if (i == -1) {
+    new_len = 1;
+    quotient_array[0] = '0';
+  } else {
+    new_len = i + 1;
+  }
+  for (int i = N - 1; i >= 0; --i) {
+    this->_array[i] = quotient_array[i];
+  }
+  this->_len = new_len;
+  this->_sign = new_sign;
+  return *this;
+}
+
+BigNumber& BigNumber::operator%=(const BigNumber &target) {
+  BigNumber target_copy;
+  target_copy.copy(target);
+
   int cur_len = this->_len - target_copy._len;
   target_copy.rotate_left(cur_len);  // make divisor same length with dividend
   target_copy._len = min(N, target_copy._len + cur_len);
@@ -408,42 +445,42 @@ BigNumber& BigNumber::operator%=(BigNumber &target) {
   return *this;
 }
 
-BigNumber BigNumber::div_and_mod(BigNumber &target) {
-  BigNumber quotient;
+/* BigNumber BigNumber::div_and_mod(BigNumber &target) { */
+/*   BigNumber quotient; */
 
-  int cur_len = this->_len - target._len;
-  target.rotate_left(cur_len);  // make divisor same length with dividend
-  target._len = min(N, target._len + cur_len);
-  for (int cur_val = 0; cur_len >= 0; --cur_len, cur_val = 0) {
-    while (*this > target || *this == target) {
-      // if divisor is less than dividend, add 1 to the current position in the quotient
-      ++cur_val;
-      *this -= target;
-    }
-    quotient._array[cur_len] = DEC2HEX(cur_val);  // put the current position's value into quotient
-    target.rotate_right(1);  // each iteration, divisor is 16 times less than previous iteration
-    target._len = max(0, target._len - 1);
-  }
+/*   int cur_len = this->_len - target._len; */
+/*   target.rotate_left(cur_len);  // make divisor same length with dividend */
+/*   target._len = min(N, target._len + cur_len); */
+/*   for (int cur_val = 0; cur_len >= 0; --cur_len, cur_val = 0) { */
+/*     while (*this > target || *this == target) { */
+/*       // if divisor is less than dividend, add 1 to the current position in the quotient */
+/*       ++cur_val; */
+/*       *this -= target; */
+/*     } */
+/*     quotient._array[cur_len] = DEC2HEX(cur_val);  // put the current position's value into quotient */
+/*     target.rotate_right(1);  // each iteration, divisor is 16 times less than previous iteration */
+/*     target._len = max(0, target._len - 1); */
+/*   } */
 
-  // find new length
-  int i;
-  for (i = N - 1; i >= 0 && quotient._array[i] == '0'; --i);
-  if (i == -1) {
-    quotient._len = 1;
-    quotient._array[0] = '0';
-  } else {
-    quotient._len = i + 1;
-  }
-  for (i = N - 1; i >= 0 && this->_array[i] == '0'; --i);
-  if (i == -1) {
-    this->_len = 1;
-    this->_array[0] = '0';
-  } else {
-    this->_len = i + 1;
-  }
+/*   // find new length */
+/*   int i; */
+/*   for (i = N - 1; i >= 0 && quotient._array[i] == '0'; --i); */
+/*   if (i == -1) { */
+/*     quotient._len = 1; */
+/*     quotient._array[0] = '0'; */
+/*   } else { */
+/*     quotient._len = i + 1; */
+/*   } */
+/*   for (i = N - 1; i >= 0 && this->_array[i] == '0'; --i); */
+/*   if (i == -1) { */
+/*     this->_len = 1; */
+/*     this->_array[0] = '0'; */
+/*   } else { */
+/*     this->_len = i + 1; */
+/*   } */
 
-  return quotient;
-}
+/*   return quotient; */
+/* } */
 
 inline void BigNumber::random(const int b) {
   this->_len = b;
@@ -465,12 +502,11 @@ inline void BigNumber::random(const BigNumber &a, const BigNumber &b) {
 }
 
 inline void BigNumber::print() const {
-  cout << "len: " << this->_len << endl;
   if (this->_sign)  // if it is negative
     cout << "-";
   for (int i = this->_len - 1; i >= 0; --i)
     cout << this->_array[i];
-  cout << endl;
+  cout << " (" << this->_len << ")" << endl;
 }
 
 inline void BigNumber::rotate_left(const int x){
@@ -513,6 +549,7 @@ inline void BigNumber::len_minus() {
 
 class MillerRabin {
   private:
+    BigNumber *small_primes;
 
   public:
     MillerRabin();
@@ -527,19 +564,26 @@ bool MillerRabin::primality_test(BigNumber &n, const int t) {
     cout << "n < 2" << endl;
     return false;
   }
-  /* for (auto x : this->small_primes) { */
-
+  /* BigNumber q; */
+  /* for (int i = 0; i < 1; ++i) { */
+  /*   q = n; */
+  /*   q %= this->small_primes[i]; */
+  /*   if (q.get_len() && q.get_bit(0) == '0') { */
+  /*     cout << "divisible by small primes" << endl; */
+  /*     return false; */
+  /*   } */
   /* } */
 
   int k = 0;
   BigNumber m = n - one;
-  while (!m.is_even()) {
+  while (m.is_even()) {
     ++k;
-    m.rotate_right(1);
+    m /= two;
   }
 
   BigNumber a, y;
   for (int i = 1; i <= t; ++i) {
+    cout << "trial: " << i << ", total: " << t << endl;
     a.random(two, m);
     cout << "a:" << endl;
     a.print();
@@ -552,50 +596,73 @@ bool MillerRabin::primality_test(BigNumber &n, const int t) {
     cout << "y (a ^ m % n)" << endl;
     y.print();
 
-    if (!(y == one) && !(y == m)) {
-      for (int j = 0; j < k; ++j) {
+    if (!(y == one) && !(y == (n - one))) {
+      for (int j = 1; j <= k - 1 && !(y == (n - one)); ++j) {
+        cout << "step: " << j << ", total: " << k - 1 << endl;
         y *= y;
+        cout << "y:" << endl;
+        y.print();
         y %= n;
+        cout << "y:" << endl;
+        y.print();
         if (y == one) {
-          cout << "y == 1" << endl;
+          cout << "y == 1, not a prime" << endl;
           return false;
         }
-        else if (y == m) {
-          cout << "y == m" << endl;
-          break;
-        }
+        /* else if (y == m) { */
+        /*   cout << "y == m" << endl; */
+        /*   break; */
+        /* } */
       }
-      if (!(y == m)) {
-        cout << "y != m" << endl;
+      if (!(y == n - one)) {
+        cout << "y != n - 1, not a prime" << endl;
         return false;
       }
+      /* if (!(y == m)) { */
+      /*   cout << "y != m, not a prime" << endl; */
+      /*   return false; */
+      /* } */
     }
   }
-  return true;
+  cout << "probably a prime" << endl;
+  return true;  // n is probably a prime
 }
 
 MillerRabin::MillerRabin() {
+  const char *string_primes[3] = {
+    "2", "3", "5"
+  };
+  this->small_primes = new BigNumber[168];
+  for (int i = 0; i < 3; ++i)
+    this->small_primes[i] = BigNumber(string_primes[i]);
   cout << "Hello world!" << endl;
 }
 
 MillerRabin::~MillerRabin() {
+  delete [] this->small_primes;
   cout <<"Bye!" << endl;
 }
 
 int main(int argc, const char * argv[]) {
   MillerRabin miller_rabin;
-  BigNumber num("f");
-  bool r = miller_rabin.primality_test(num, 1);
-  cout << "r:" << endl;
-  cout << r << endl;
+  BigNumber num("13251481");
+  miller_rabin.primality_test(num, 1);
 
-  /* BigNumber a("3"); */
+  /* BigNumber n("13251481"); */
+  /* BigNumber a("c24e099"); */
+  /* a.print(); */
+  /* a *= a; */
+  /* a.print(); */
+  /* a %= n; */
+  /* a.print(); */
+
+  /* BigNumber a("2c2"); */
   /* cout << "a:" << endl; */
   /* a.print(); */
-  /* BigNumber b("11"); */
+  /* BigNumber b("9bd"); */
   /* cout << "b:" << endl; */
   /* b.print(); */
-  /* BigNumber c("7d"); */
+  /* BigNumber c("26f5"); */
   /* cout << "c:" << endl; */
   /* c.print(); */
   /* BigNumber d; */
