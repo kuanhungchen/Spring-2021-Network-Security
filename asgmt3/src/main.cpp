@@ -102,17 +102,19 @@ class BigNumber {
 
     // operators
     bool operator>(const BigNumber&) const;
-    bool operator==(const BigNumber&) const;
     bool operator<(const BigNumber&) const;
+    bool operator==(const BigNumber&) const;
     BigNumber operator+(const BigNumber&) const;
     BigNumber operator-(const BigNumber&) const;
     BigNumber operator*(const BigNumber&) const;
-    /* BigNumber operator/(BigNumber&);  // modify itself to represent remainder */
-    /* BigNumber operator%(const BigNumber&); */
-    BigNumber& operator-=(const BigNumber&);  // prevent re-instancialize
+    BigNumber operator/(const BigNumber&) const;
+    BigNumber operator%(const BigNumber&) const;
+    BigNumber& operator+=(const BigNumber&);
+    BigNumber& operator-=(const BigNumber&);
     BigNumber& operator*=(const BigNumber&);
     BigNumber& operator/=(const BigNumber&);
     BigNumber& operator%=(const BigNumber&);
+    BigNumber& operator=(const BigNumber&);
 
     // helper functions
     void random(const int);
@@ -120,13 +122,10 @@ class BigNumber {
     void print() const;
     void rotate_left(const int);
     void rotate_right(const int);
-    /* BigNumber div_and_mod(BigNumber&);  // divide and modulo can be calculated at the same time */
     bool is_even();
     int get_len() {return this->_len;}
     char get_bit(const int i) {return this->_array[i];}
-    void copy(const BigNumber&);
     void set_as(const string&);
-    void last_bit_minus();
     void update_len(const int);
     void padding(const BigNumber&, const int);
 };
@@ -175,9 +174,9 @@ BigNumber::~BigNumber() {
 bool BigNumber::operator>(const BigNumber &target) const {
   // only care about magnitude
   bool res;
-  if (this->_len > target._len) {
+  if (_len > target._len) {
     res = true;
-  } else if (this->_len < target._len) {
+  } else if (_len < target._len) {
     res = false;
   } else {
     int i;
@@ -190,7 +189,7 @@ bool BigNumber::operator>(const BigNumber &target) const {
 bool BigNumber::operator==(const BigNumber &target) const {
   // only care about magnitude
   bool res;
-  if (this->_len != target._len) {
+  if (_len != target._len) {
     res = false;
   } else {
     int i;
@@ -214,48 +213,70 @@ bool BigNumber::operator<(const BigNumber &target) const {
   }
   return res;
 }
+void add_array(int len, char *a, char *b, char *s) {
+  char carry = '0';
+  for (int i = 0; i <= len; ++i)
+    s[i] = add(a[i], b[i], carry, carry);
+}
+
+void sub_array(int len, char *a, char *b, char *s) {
+  char borrow = '0';
+  for (int i = 0; i < len; ++i)
+    s[i] = sub(a[i], b[i], borrow, borrow);
+}
 
 BigNumber BigNumber::operator+(const BigNumber &target) const {
   bool new_sign = false;
-  int new_len = max(this->_len, target._len);
-  char sum_array[N], carry = '0';
+  int new_len;
+  char sum_array[N];
   for (int i = 0; i < N; ++i) sum_array[i] = '0';
 
-  for (int i = 0; i <= new_len; ++i)  // start from low-digit to high-digit
-    sum_array[i] = add(this->_array[i], target._array[i], carry, carry);
-  if (sum_array[new_len] != '0') ++new_len;  // if carry exists at highest-digit, then the length will be increased
-
+  if (!(_sign ^ target._sign)) {
+    if (*this > target || *this == target) {
+      add_array(_len, _array, target._array, sum_array);
+    } else {
+      add_array(target._len, target._array, _array, sum_array);
+    }
+    new_sign = _sign;
+  } else {
+    if (*this > target || *this == target) {
+      sub_array(_len, _array, target._array, sum_array);
+      new_sign = _sign;
+    } else {
+      sub_array(target._len, target._array, _array, sum_array);
+      new_sign = target._sign;
+    }
+  }
+  for (new_len = N; sum_array[new_len - 1] == '0' && new_len >= 1; --new_len);
+  if (new_len == 0) new_len = 1;
   BigNumber sum(new_sign, new_len, sum_array);
   return sum;
 }
 
 BigNumber BigNumber::operator-(const BigNumber &target) const {
-  bool new_sign;
+  bool new_sign = false;
   int new_len;
-  char diff_array[N], borrow = '0';
+  char diff_array[N];
   for (int i = 0; i < N; ++i) diff_array[i] = '0';
 
-  if (*this == target) {
-    // a == b
-    new_sign = false;
-    new_len = 1;
-  } else {
-    if (*this > target) {
-      // a > b
-      new_sign = false;
-      new_len = this->_len;
-      for (int i = 0; i < new_len; ++i)  // start from low-digit to high-digit
-        diff_array[i] = sub(this->_array[i], target._array[i], borrow, borrow);
+  if (_sign ^ target._sign) {
+    if (*this > target || *this == target) {
+      add_array(_len, _array, target._array, diff_array);
     } else {
-      // a < b
-      new_sign = true;
-      new_len = target._len;
-      for (int i = 0; i < new_len; ++i)  // start from low-digit to high-digit
-        diff_array[i] = sub(target._array[i], this->_array[i], borrow, borrow);
+      add_array(target._len, target._array, _array, diff_array);
     }
-    for (; diff_array[new_len - 1] == '0'; --new_len);  // find new length
+    new_sign = _sign;
+  } else {
+    if (*this > target || *this == target) {
+      sub_array(_len, _array, target._array, diff_array);
+      new_sign = _sign;
+    } else {
+      sub_array(target._len, target._array, _array, diff_array);
+      new_sign = !target._sign;
+    }
   }
-
+  for (new_len = N; diff_array[new_len - 1] == '0' && new_len >= 1; --new_len);
+  if (new_len == 0) new_len = 1;
   BigNumber diff(new_sign, new_len, diff_array);
   return diff;
 }
@@ -292,13 +313,94 @@ BigNumber BigNumber::operator*(const BigNumber &target) const {
   return product;
 }
 
-/* BigNumber BigNumber::operator/(BigNumber &target) { */
-/*   return this->div_and_mod(target);  // use helper function to calculate both division and modulo */
-/* } */
+BigNumber BigNumber::operator/(const BigNumber &target) const {
+  BigNumber quotient;
+  BigNumber this_copy, target_copy;
+  this_copy = *this;
+  target_copy = target;
 
-/* BigNumber BigNumber::operator%(const BigNumber &target) { */
-/*   return *this;  // after division, the original a has become remainder */
-/* } */
+  int cur_len = this_copy._len - target_copy._len;
+  target_copy.rotate_left(cur_len);  // make divisor same length with dividend
+  target_copy._len = min(N, target_copy._len + cur_len);
+  for (int cur_val = 0; cur_len >= 0; --cur_len, cur_val = 0) {
+    while (this_copy > target_copy || this_copy == target_copy) {
+      ++cur_val;
+      this_copy -= target_copy;
+    }
+    quotient._array[cur_len] = DEC2HEX(cur_val);  // put the current position's value into quotient
+    target_copy.rotate_right(1);  // each iteration, divisor is 16 times less than previous iteration
+    target_copy._len = max(0, target_copy._len - 1);
+  }
+
+  // find new length
+  int i;
+  for (i = N - 1; i >= 0 && quotient._array[i] == '0'; --i);
+  if (i == -1) {
+    quotient._len = 1;
+    quotient._array[0] = '0';
+  } else {
+    quotient._len = i + 1;
+  }
+
+  return quotient;
+}
+
+BigNumber BigNumber::operator%(const BigNumber &target) const {
+  BigNumber remainder, target_copy;
+  remainder = *this;
+  target_copy = target;
+
+  int cur_len = remainder._len - target_copy._len;
+  target_copy.rotate_left(cur_len);  // make divisor same length with dividend
+  target_copy._len = min(N, target_copy._len + cur_len);
+  for (int cur_val = 0; cur_len >= 0; --cur_len, cur_val = 0) {
+    while (remainder > target_copy || remainder == target_copy) {
+      // if divisor is less than dividend, add 1 to the current position in the quotient
+      ++cur_val;
+      remainder -= target_copy;
+    }
+    target_copy.rotate_right(1);  // each iteration, divisor is 16 times less than previous iteration
+    target_copy._len = max(0, target_copy._len - 1);
+  }
+
+  // find new length
+  int i;
+  for (i = N - 1; i >= 0 && remainder._array[i] == '0'; --i);
+  if (i == -1) {
+    remainder._len = 1;
+    remainder._array[0] = '0';
+  } else {
+    remainder._len = i + 1;
+  }
+  return remainder;
+}
+
+BigNumber& BigNumber::operator=(const BigNumber &target) {
+  _sign = target._sign;
+  _len = target._len;
+  for (int i = N - 1; i >= _len; --i)
+    _array[i] = '0';
+  for (int i = _len - 1; i >= 0; --i)
+    _array[i] = target._array[i];
+  return *this;
+}
+
+BigNumber& BigNumber::operator+=(const BigNumber &target) {
+  bool new_sign = false;
+  int new_len = max(this->_len, target._len);
+  char sum_array[N], carry = '0';
+  for (int i = 0; i < N; ++i) sum_array[i] = '0';
+
+  for (int i = 0; i <= new_len; ++i)  // start from low-digit to high-digit
+    sum_array[i] = add(this->_array[i], target._array[i], carry, carry);
+  if (sum_array[new_len] != '0') ++new_len;  // if carry exists at highest-digit, then the length will be increased
+
+  _sign = new_sign;
+  _len = new_len;
+  for (int i = _len - 1; i >= 0; --i)
+    _array[i] = sum_array[i];
+  return *this;
+}
 
 BigNumber& BigNumber::operator-=(const BigNumber &target) {
   /* a subtraction helper function to prevent re-instancialize */
@@ -316,24 +418,24 @@ BigNumber& BigNumber::operator-=(const BigNumber &target) {
     if (*this > target) {
       // a > b
       new_sign = false;
-      new_len = this->_len;
+      new_len = _len;
       for (int i = 0; i < new_len; ++i)  // start from low-digit to high-digit
-        diff_array[i] = sub(this->_array[i], target._array[i], borrow, borrow);
+        diff_array[i] = sub(_array[i], target._array[i], borrow, borrow);
     } else {
       // a < b
       new_sign = true;
       new_len = target._len;
       for (int i = 0; i < new_len; ++i)  // start from low-digit to high-digit
-        diff_array[i] = sub(target._array[i], this->_array[i], borrow, borrow);
+        diff_array[i] = sub(target._array[i], _array[i], borrow, borrow);
     }
     for (; diff_array[new_len - 1] == '0'; --new_len);  // find new length
   }
 
   // assign to itself instead of create a new instance
-  this->_sign = new_sign;
-  for (int i = this->_len - 1; i >= 0; --i)
-    this->_array[i] = diff_array[i];
-  this->_len = new_len;
+  _sign = new_sign;
+  for (int i = _len - 1; i >= 0; --i)
+    _array[i] = diff_array[i];
+  _len = new_len;
 
   return *this;
 }
@@ -376,33 +478,13 @@ BigNumber& BigNumber::operator*=(const BigNumber &target) {
   return *this;
 }
 
-void modular_exp(BigNumber &y, const BigNumber &a, const BigNumber &m,
-                 const BigNumber &n) {
-  /* Compute y = (a ^ m) % n */
-  BigNumber a_copy, m_copy;
-  a_copy.copy(a);
-  m_copy.copy(m);
-  while (!(m_copy.get_len() == 1 && m_copy.get_bit(0) == '0')) {
-    for (int i = 0; i < HEX2DEC(m_copy.get_bit(0)); ++i) {
-      y *= a_copy;
-      y %= n;
-    }
-    for (int i = 0; i < 4; ++i) {
-      a_copy *= a_copy;
-      a_copy %= n;
-    }
-    m_copy.rotate_right(1);
-    m_copy.update_len(-1);
-  }
-}
-
 BigNumber& BigNumber::operator/=(const BigNumber &target) {
   bool new_sign = this->_sign ^ target._sign;
   int new_len;
   char quotient_array[N];
   for (int i = N - 1; i >= 0; --i)  quotient_array[i] = '0';
   BigNumber target_copy;
-  target_copy.copy(target);
+  target_copy = target;
   int cur_len = this->_len - target_copy._len;
   target_copy.rotate_left(cur_len);  // make divisor same length with dividend
   target_copy._len = min(N, target_copy._len + cur_len);
@@ -436,7 +518,7 @@ BigNumber& BigNumber::operator/=(const BigNumber &target) {
 
 BigNumber& BigNumber::operator%=(const BigNumber &target) {
   BigNumber target_copy;
-  target_copy.copy(target);
+  target_copy = target;
 
   int cur_len = this->_len - target_copy._len;
   target_copy.rotate_left(cur_len);  // make divisor same length with dividend
@@ -459,6 +541,81 @@ BigNumber& BigNumber::operator%=(const BigNumber &target) {
     this->_len = i + 1;
   }
   return *this;
+}
+
+void modular_exp(BigNumber &y, const BigNumber &a, const BigNumber &m,
+                 const BigNumber &n) {
+  /* Compute y = (a ^ m) % n */
+  BigNumber a_copy, m_copy;
+  a_copy = a;
+  m_copy = m;
+  while (!(m_copy.get_len() == 1 && m_copy.get_bit(0) == '0')) {
+    for (int i = 0; i < HEX2DEC(m_copy.get_bit(0)); ++i) {
+      y *= a_copy;
+      y %= n;
+    }
+    for (int i = 0; i < 4; ++i) {
+      a_copy *= a_copy;
+      a_copy %= n;
+    }
+    m_copy.rotate_right(1);
+    m_copy.update_len(-1);
+  }
+}
+
+BigNumber square_root(const BigNumber &a, const BigNumber &p) {
+  BigNumber d("1"), sqrt("1");
+  BigNumber one("1"), two("2"), three("3"), four("4"), five("5"), eight("8");
+  BigNumber a_copy, p_copy, p_copy_copy;
+
+  a_copy = a;
+  p_copy = p;
+  p_copy_copy = p;
+  /* a_copy %= p_copy; */
+
+  if ((p_copy % four) == three) {
+    modular_exp(sqrt, a_copy, (p_copy + one) / four, p_copy_copy);
+  } else if ((p_copy % eight) == five) {
+    modular_exp(d, a_copy, (p_copy - one) / four, p_copy);
+    if ((d % p_copy) == one) {
+      sqrt.set_as("1");
+      modular_exp(sqrt, a, (p_copy + three) / eight, p_copy);
+    } else if (d == (p_copy - one)) {
+      sqrt.set_as("1");
+      modular_exp(sqrt, a_copy * four, (p_copy - five) / eight, p_copy);
+      sqrt *= a_copy;
+      sqrt *= two;
+      sqrt %= p_copy;
+    }
+  }
+  return sqrt;
+}
+
+void extended_euclid_algo(const BigNumber &p, const BigNumber &q,
+                          BigNumber &c, BigNumber &d) {
+  BigNumber tmp, m, r0, r1;
+  BigNumber s0("1"), s1("0");
+  BigNumber t0("0"), t1("1");
+  r0 = p;
+  r1 = q;
+
+  while (!(r1.get_len() == 1 && r1.get_bit(0) == '0')) {
+    m = r0 / r1;
+
+    tmp = r0;
+    r0 = r1;
+    r1 = tmp % r1;
+
+    tmp = s0;
+    s0 = s1;
+    s1 = tmp - (s1 * m);
+
+    tmp = t0;
+    t0 = t1;
+    t1 = tmp - (t1 * m);
+  }
+  c = s0;
+  d = t0;
 }
 
 /* BigNumber BigNumber::div_and_mod(BigNumber &target) { */
@@ -517,10 +674,10 @@ inline void BigNumber::random(const BigNumber &a, const BigNumber &b) {
 }
 
 inline void BigNumber::print() const {
-  if (this->_sign)  // if it is negative
+  if (_sign)  // if it is negative
     cout << "-";
-  for (int i = this->_len - 1; i >= 0; --i)
-    cout << this->_array[i];
+  for (int i = _len - 1; i >= 0; --i)
+    cout << _array[i];
   cout << " (" << _len << ")" << endl;
 }
 
@@ -534,43 +691,41 @@ inline void BigNumber::rotate_left(const int x){
 
 inline void BigNumber::rotate_right(const int x) {
   // shift all bits to right by x times
-  for (int i = 0; i < this->_len - x; ++i)
-    this->_array[i] = this->_array[i + x];
-  for (int i = this->_len - x; i < this->_len; ++i)
-    this->_array[i] = '0';
+  for (int i = 0; i < _len - x; ++i)
+    _array[i] = _array[i + x];
+  for (int i = _len - x; i < _len; ++i)
+    _array[i] = '0';
 }
 
 inline bool BigNumber::is_even() {
   return HEX2DEC(this->_array[0]) % 2 == 0;
 }
 
-inline void BigNumber::copy(const BigNumber &target) {
-  this->_len = target._len;
-  for (int i = this->_len - 1; i >= 0; --i)
-    this->_array[i] = target._array[i];
-}
-
 inline void BigNumber::set_as(const string &array) {
-  this->_sign = array[0] == '-';
-  int _len = 0;
+  _sign = array[0] == '-';
+  int new_len = 0;
   for (int i = 0; i < array.size(); ++i) {
-    if (array[i] != '\0') ++_len;
+    if (array[i] != '\0') ++new_len;
     else break;
   }
-  this->_len = _len;
-  this->_array = new char[N];
-  for (int i = N - 1; i >= this->_len; --i)
-    this->_array[i] = '0';
-  for (int i = this->_len - 1; i >= 0; --i)
-    this->_array[i] = array[this->_len - i - 1];
-}
-
-inline void BigNumber::last_bit_minus() {
-  this->_array[0] = DEC2HEX(HEX2DEC(this->_array[0]) - 1);
+  _len = _sign ? new_len - 1 : new_len;
+  for (int i = N - 1; i >= _len; --i)
+    _array[i] = '0';
+  if (_sign) {
+    for (int i = _len - 1; i >= 0; --i)
+      _array[i] = array[_len - i];
+  } else {
+    for (int i = _len - 1; i >= 0; --i)
+      _array[i] = array[_len - i - 1];
+  }
 }
 
 inline void BigNumber::update_len(const int l) {
-  this->_len += l;
+  _len += l;
+  if (_len <= 0) {
+    _len = 1;
+    _array[0] = '0';
+  }
 }
 
 inline void BigNumber::padding(const BigNumber &m, const int b) {
@@ -587,6 +742,8 @@ class MillerRabin {
     ~MillerRabin();
     bool primality_test(const BigNumber&, const int);
     BigNumber encrypt(const BigNumber&, const BigNumber&);
+    void decrypt(const BigNumber&, const BigNumber&, const BigNumber&,
+                 BigNumber&, BigNumber&, BigNumber&, BigNumber&);
 };
 
 MillerRabin::MillerRabin() {
@@ -609,7 +766,7 @@ bool MillerRabin::primality_test(const BigNumber &n, const int t) {
   }
   BigNumber n_copy, small_prime;
   for (int i = 0; i < 3; ++i) {
-    n_copy.copy(n);
+    n_copy = n;
     small_prime.set_as(small_primes[i]);
     n_copy %= small_prime;
     if (n_copy.get_len() == 1 && n_copy.get_bit(0) == '0') {
@@ -667,14 +824,43 @@ bool MillerRabin::primality_test(const BigNumber &n, const int t) {
 
 BigNumber MillerRabin::encrypt(const BigNumber &m, const BigNumber &key) {
   BigNumber c;
+  c = m;
 
-  c.copy(m);
+  // 16-bit repetition padding
   c.rotate_left(4);
   c.update_len(4);
   c.padding(m, 4);
+
   c *= c;
   c %= key;
   return c;
+}
+
+void MillerRabin::decrypt(const BigNumber &p, const BigNumber &q,
+                          const BigNumber &cipher, BigNumber &c1,
+                          BigNumber &c2, BigNumber &c3, BigNumber &c4) {
+  BigNumber c, d;
+  BigNumber n = p * q;
+  BigNumber sqrt_p = square_root(cipher, p);
+  sqrt_p.print();
+  BigNumber sqrt_q = square_root(cipher, q);
+  sqrt_q.print();
+  extended_euclid_algo(p, q, c, d);
+  c.print();
+  d.print();
+
+  c1 = (sqrt_q * c * p + sqrt_p * d * q) % n;
+  c2 = (sqrt_q * c * p - sqrt_p * d * q) % n;
+  c3 = n - c1;
+  c4 = n - c2;
+  c1.rotate_right(4);
+  c1.update_len(4);
+  c2.rotate_right(4);
+  c2.update_len(4);
+  c3.rotate_right(4);
+  c3.update_len(4);
+  c4.rotate_right(4);
+  c4.update_len(4);
 }
 
 int main(int argc, const char * argv[]) {
@@ -691,7 +877,7 @@ int main(int argc, const char * argv[]) {
   /* random_prime.print(); */
 
   // Rabin Encryption
-  cout << "<Rabin Encryption" << endl;
+  cout << "<Rabin Encryption>" << endl;
   string p, q;
   cout << "p = ";
   getline(cin, p);
@@ -720,6 +906,34 @@ int main(int argc, const char * argv[]) {
                                                       big_num_n);
   cout << "Cyphertext = ";
   big_num_ciphertext.print();
+
+  // Rabin Decryption
+  cout << "<Rabin Decryption>" << endl;
+  string ciphertext;
+  cout << "Ciphertext = ";
+  getline(cin, ciphertext);
+
+  remove_spaces(ciphertext);
+  big_num_ciphertext.set_as(ciphertext);
+
+  cout << "Private Key:" << endl;
+  cout << "p = ";
+  getline(cin, p);
+  cout << "q = ";
+  getline(cin, q);
+
+  remove_spaces(p);
+  remove_spaces(q);
+  big_num_p.set_as(p);
+  big_num_q.set_as(q);
+
+  BigNumber c1, c2, c3, c4;
+  miller_rabin.decrypt(big_num_p, big_num_q, big_num_ciphertext,
+                       c1, c2, c3, c4);
+  c1.print();
+  c2.print();
+  c3.print();
+  c4.print();
 
   return 0;
 }
