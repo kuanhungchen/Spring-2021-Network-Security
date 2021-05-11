@@ -49,15 +49,6 @@ int min(const int a, const int b) {
   return b;
 }
 
-void remove_spaces(string &s) {
-  int cnt = 0;
-  for (int i = 0; s[i]; ++i) {
-    if (s[i] != ' ')
-      s[cnt++] = s[i];
-  }
-  s[cnt] = '\0';
-}
-
 char add(const char a, const char b, const char c, char &carry) {
   /* single char addition */
   int r = HEX2DEC(a) + HEX2DEC(b) + HEX2DEC(c);
@@ -98,6 +89,29 @@ char mul(const char a, const char b, const char c, char &sum) {
     carry = '0';
   }
   return carry;
+}
+
+void add_array(int len, char *a, char *b, char *s) {
+  /* add two arrays, a must be larger than b in absolute value */
+  char carry = '0';
+  for (int i = 0; i <= len; ++i)
+    s[i] = add(a[i], b[i], carry, carry);
+}
+
+void sub_array(int len, char *a, char *b, char *s) {
+  /* sub two arrays, a must be larger than b in absolute value */
+  char borrow = '0';
+  for (int i = 0; i < len; ++i)
+    s[i] = sub(a[i], b[i], borrow, borrow);
+}
+
+void remove_spaces(string &s) {
+  int cnt = 0;
+  for (int i = 0; s[i]; ++i) {
+    if (s[i] != ' ')
+      s[cnt++] = s[i];
+  }
+  s[cnt] = '\0';
 }
 
 class BigNumber {
@@ -206,19 +220,6 @@ bool BigNumber::operator>(const BigNumber &target) const {
   return res;
 }
 
-bool BigNumber::operator==(const BigNumber &target) const {
-  // absolute value comparison
-  bool res;
-  if (_len != target._len) {
-    res = false;
-  } else {
-    int i;
-    for (i = _len - 1; i >= 0 && _array[i] == target._array[i]; --i);
-    res = (i == -1);
-  }
-  return res;
-}
-
 bool BigNumber::operator<(const BigNumber &target) const {
   // absolute value comparison
   bool res;
@@ -233,18 +234,18 @@ bool BigNumber::operator<(const BigNumber &target) const {
   }
   return res;
 }
-void add_array(int len, char *a, char *b, char *s) {
-  /* add two arrays, a must be larger than b in absolute value */
-  char carry = '0';
-  for (int i = 0; i <= len; ++i)
-    s[i] = add(a[i], b[i], carry, carry);
-}
 
-void sub_array(int len, char *a, char *b, char *s) {
-  /* sub two arrays, a must be larger than b in absolute value */
-  char borrow = '0';
-  for (int i = 0; i < len; ++i)
-    s[i] = sub(a[i], b[i], borrow, borrow);
+bool BigNumber::operator==(const BigNumber &target) const {
+  // absolute value comparison
+  bool res;
+  if (_len != target._len) {
+    res = false;
+  } else {
+    int i;
+    for (i = _len - 1; i >= 0 && _array[i] == target._array[i]; --i);
+    res = (i == -1);
+  }
+  return res;
 }
 
 BigNumber BigNumber::operator+(const BigNumber &target) const {
@@ -322,13 +323,10 @@ BigNumber BigNumber::operator*(const BigNumber &target) const {
       }
     }
   }
-  for (new_len = this->_len * target._len + 1; new_len > 0 &&
-      product_array[new_len - 1] == '0'; --new_len);  // find new length
+  for (new_len = N; product_array[new_len - 1] == '0' && new_len >= 1; --new_len);
   if (new_len == 0) {
-    // if result is zero
-    new_sign = false;
     new_len = 1;
-    product_array[0] = '0';
+    new_sign = false;
   }
 
   BigNumber product(new_sign, new_len, product_array);
@@ -349,12 +347,13 @@ BigNumber BigNumber::operator/(const BigNumber &target) const {
       ++cur_val;
       this_copy -= target_copy;
     }
-    quotient._array[cur_len] = DEC2HEX(cur_val);  // put the current position's value into quotient
-    target_copy.rotate_right(1);  // each iteration, divisor is 16 times less than previous iteration
+    // put the current position's value into quotient
+    quotient._array[cur_len] = DEC2HEX(cur_val);
+    // each iteration, divisor is 16 times less than previous iteration
+    target_copy.rotate_right(1);
     target_copy._len = max(0, target_copy._len - 1);
   }
 
-  // find new length
   int i;
   for (i = N - 1; i >= 0 && quotient._array[i] == '0'; --i);
   if (i == -1) {
@@ -363,7 +362,6 @@ BigNumber BigNumber::operator/(const BigNumber &target) const {
   } else {
     quotient._len = i + 1;
   }
-
   return quotient;
 }
 
@@ -381,11 +379,11 @@ BigNumber BigNumber::operator%(const BigNumber &target) const {
       ++cur_val;
       remainder -= target_copy;
     }
-    target_copy.rotate_right(1);  // each iteration, divisor is 16 times less than previous iteration
+    // each iteration, divisor is 16 times less than previous iteration
+    target_copy.rotate_right(1);
     target_copy._len = max(0, target_copy._len - 1);
   }
 
-  // find new length
   int i;
   for (i = N - 1; i >= 0 && remainder._array[i] == '0'; --i);
   if (i == -1) {
@@ -395,16 +393,6 @@ BigNumber BigNumber::operator%(const BigNumber &target) const {
     remainder._len = i + 1;
   }
   return remainder;
-}
-
-BigNumber& BigNumber::operator=(const BigNumber &target) {
-  _sign = target._sign;
-  _len = target._len;
-  for (int i = N - 1; i >= _len; --i)
-    _array[i] = '0';
-  for (int i = _len - 1; i >= 0; --i)
-    _array[i] = target._array[i];
-  return *this;
 }
 
 BigNumber& BigNumber::operator+=(const BigNumber &target) {
@@ -573,6 +561,101 @@ BigNumber& BigNumber::operator%=(const BigNumber &target) {
   return *this;
 }
 
+BigNumber& BigNumber::operator=(const BigNumber &target) {
+  _sign = target._sign;
+  _len = target._len;
+  for (int i = N - 1; i >= _len; --i)
+    _array[i] = '0';
+  for (int i = _len - 1; i >= 0; --i)
+    _array[i] = target._array[i];
+  return *this;
+}
+
+inline void BigNumber::print() const {
+  if (_sign)  // if it is negative
+    cout << "-";
+  for (int i = _len - 1, cnt = 0; i >= 0; --i) {
+    cout << _array[i];
+    if (++cnt == 8) {
+      cout << " ";
+      cnt = 0;
+    }
+  }
+  cout << endl;
+}
+
+inline bool BigNumber::is_even() const {
+  return HEX2DEC(_array[0]) % 2 == 0;
+}
+
+inline void BigNumber::update_len(const int l) {
+  _len += l;
+  if (_len <= 0) {
+    _len = 1;
+    _sign = false;
+  }
+}
+
+inline void BigNumber::rotate_left(const int x){
+  // shift all bits to left by x times
+  for (int i = min(N, _len + x) - 1; i >= x; --i)
+    _array[i] = _array[i - x];
+  for (int i = x - 1; i >= 0; --i)
+    _array[i] = '0';
+}
+
+inline void BigNumber::rotate_right(const int x) {
+  // shift all bits to right by x times
+  for (int i = 0; i < _len - x; ++i)
+    _array[i] = _array[i + x];
+  for (int i = _len - x; i < _len; ++i)
+    _array[i] = '0';
+}
+
+inline void BigNumber::padding(const BigNumber &m, const int b) {
+  /* padding the last b-bits in the tail with m */
+  for (int i = 0; i < b; ++i)
+    _array[i] = m._array[i];
+}
+
+inline void BigNumber::set_as(const string &array) {
+  _sign = array[0] == '-';
+  int new_len = 0;
+  for (int i = 0; i < array.size(); ++i) {
+    if (array[i] != '\0') ++new_len;
+    else break;
+  }
+  _len = _sign ? new_len - 1 : new_len;
+  for (int i = N - 1; i >= _len; --i)
+    _array[i] = '0';
+  if (_sign) {
+    for (int i = _len - 1; i >= 0; --i)
+      _array[i] = array[_len - i];
+  } else {
+    for (int i = _len - 1; i >= 0; --i)
+      _array[i] = array[_len - i - 1];
+  }
+}
+
+inline void BigNumber::random(const int b) {
+  /* randomize a big number with b-bit */
+  _len = b;
+  for (int i = 0; i < b; ++i)
+    _array[i] = DEC2HEX(rand() % (15 - 0 + 1) + 0);
+}
+
+inline void BigNumber::random(const BigNumber &a, const BigNumber &b) {
+  /* randomize a big number between a and b */
+  _len = b._len;
+  for (int i = 0; i < b._len - 1; ++i)
+    _array[i] = DEC2HEX(rand() % (15 - 0 + 1) + 0);
+  if (b._array[b._len - 1] == '1')
+    --_len;
+  else
+    _array[_len - 1] =
+        DEC2HEX(rand() % (HEX2DEC(b._array[b._len - 1]) - 1 - 1 + 1) + 1);
+}
+
 void modular_exp(BigNumber &y, const BigNumber &a, const BigNumber &m,
                  const BigNumber &n) {
   /* Compute y = (a ^ m) % n */
@@ -628,7 +711,6 @@ void extended_euclid_algo(const BigNumber &p, const BigNumber &q,
   BigNumber t0("0"), t1("1");
   r0 = p;
   r1 = q;
-
   while (!(r1.get_len() == 1 && r1.get_bit(0) == '0')) {
     m = r0 / r1;
 
@@ -646,92 +728,6 @@ void extended_euclid_algo(const BigNumber &p, const BigNumber &q,
   }
   c = s0;
   d = t0;
-}
-
-inline void BigNumber::random(const int b) {
-  /* randomize a big number with b-bit */
-  _len = b;
-  for (int i = 0; i < b; ++i)
-    _array[i] = DEC2HEX(rand() % (15 - 0 + 1) + 0);
-}
-
-inline void BigNumber::random(const BigNumber &a, const BigNumber &b) {
-  /* randomize a big number between a and b */
-  _len = b._len;
-  for (int i = 0; i < b._len - 1; ++i)
-    _array[i] = DEC2HEX(rand() % (15 - 0 + 1) + 0);
-  if (b._array[b._len - 1] == '1')
-    --_len;
-  else
-    _array[_len - 1] =
-        DEC2HEX(rand() % (HEX2DEC(b._array[b._len - 1]) - 1 - 1 + 1) + 1);
-}
-
-inline void BigNumber::print() const {
-  if (_sign)  // if it is negative
-    cout << "-";
-  for (int i = _len - 1, cnt = 0; i >= 0; --i) {
-    cout << _array[i];
-    if (++cnt == 8) {
-      cout << " ";
-      cnt = 0;
-    }
-  }
-  /* cout << " (" << _len << ")" << endl; */
-  cout << endl;
-}
-
-inline void BigNumber::rotate_left(const int x){
-  // shift all bits to left by x times
-  for (int i = min(N, _len + x) - 1; i >= x; --i)
-    _array[i] = _array[i - x];
-  for (int i = x - 1; i >= 0; --i)
-    _array[i] = '0';
-}
-
-inline void BigNumber::rotate_right(const int x) {
-  // shift all bits to right by x times
-  for (int i = 0; i < _len - x; ++i)
-    _array[i] = _array[i + x];
-  for (int i = _len - x; i < _len; ++i)
-    _array[i] = '0';
-}
-
-inline bool BigNumber::is_even() const {
-  return HEX2DEC(_array[0]) % 2 == 0;
-}
-
-inline void BigNumber::set_as(const string &array) {
-  _sign = array[0] == '-';
-  int new_len = 0;
-  for (int i = 0; i < array.size(); ++i) {
-    if (array[i] != '\0') ++new_len;
-    else break;
-  }
-  _len = _sign ? new_len - 1 : new_len;
-  for (int i = N - 1; i >= _len; --i)
-    _array[i] = '0';
-  if (_sign) {
-    for (int i = _len - 1; i >= 0; --i)
-      _array[i] = array[_len - i];
-  } else {
-    for (int i = _len - 1; i >= 0; --i)
-      _array[i] = array[_len - i - 1];
-  }
-}
-
-inline void BigNumber::update_len(const int l) {
-  _len += l;
-  if (_len <= 0) {
-    _len = 1;
-    _sign = false;
-  }
-}
-
-inline void BigNumber::padding(const BigNumber &m, const int b) {
-  /* padding the last b-bits in the tail with m */
-  for (int i = 0; i < b; ++i)
-    _array[i] = m._array[i];
 }
 
 class MillerRabin {
@@ -754,8 +750,7 @@ MillerRabin::MillerRabin() {
 }
 
 MillerRabin::~MillerRabin() {
-  if (small_primes)
-    delete[] small_primes;
+  delete[] small_primes;
 }
 
 bool MillerRabin::primality_test(const BigNumber &n, const int t) {
@@ -783,7 +778,6 @@ bool MillerRabin::primality_test(const BigNumber &n, const int t) {
   BigNumber a, y;
   for (int i = 1; i <= t; ++i) {
     a.random(two, m);
-
     y.set_as("1");
     modular_exp(y, a, m, n);
 
@@ -791,13 +785,11 @@ bool MillerRabin::primality_test(const BigNumber &n, const int t) {
       for (int j = 1; j <= k - 1 && !(y == (n - one)); ++j) {
         y *= y;
         y %= n;
-        if (y == one) {
+        if (y == one)
           return false;
-        }
       }
-      if (!(y == n - one)) {
+      if (!(y == n - one))
         return false;
-      }
     }
   }
   return true;
@@ -824,10 +816,6 @@ void MillerRabin::decrypt(const BigNumber &p, const BigNumber &q,
   BigNumber sqrt_p = square_root(cipher, p);
   BigNumber sqrt_q = square_root(cipher, q);
   extended_euclid_algo(p, q, c, d);
-  /* sqrt_p.print(); */
-  /* sqrt_q.print(); */
-  /* c.print(); */
-  /* d.print(); */
 
   BigNumber c1, c2, c3, c4;
   c1 = (sqrt_q * c * p + sqrt_p * d * q) % n;
@@ -868,6 +856,7 @@ int main(int argc, const char * argv[]) {
     random_prime.random(64);
   }
   random_prime.print();
+  cout << endl;
 
   /* // Rabin Encryption */
   cout << "<Rabin Encryption>" << endl;
@@ -886,6 +875,7 @@ int main(int argc, const char * argv[]) {
   BigNumber big_num_n = big_num_p * big_num_q;
   cout << "n = pq = ";
   big_num_n.print();
+  cout << endl;
 
   string plaintext;
   cout << "Plaintext: ";
@@ -899,6 +889,7 @@ int main(int argc, const char * argv[]) {
                                                       big_num_n);
   cout << "Cyphertext = ";
   big_num_ciphertext.print();
+  cout << endl;
 
   // Rabin Decryption
   cout << "<Rabin Decryption>" << endl;
