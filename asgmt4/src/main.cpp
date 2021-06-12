@@ -654,17 +654,22 @@ class Point {
     BigNumber x;
     BigNumber y;
   public:
+    // constructor
     Point();
     Point(const BigNumber&, const BigNumber&);
 
+    // operators
     bool operator==(const Point&) const;
     Point operator+(const Point&) const;
     Point operator*(const BigNumber&) const;
 
-    void negating() {y.set_sign(true);}
+    // helper functions
     void print() const;
+    void get_x(BigNumber& xx) const {xx = x;}
+    void get_y(BigNumber& yy) const {yy = y;}
     void set_x(const BigNumber& xx) {x = xx;}
     void set_y(const BigNumber& yy) {y = yy;}
+    void negating() {y.set_sign(true);}
 };
 
 Point::Point() {
@@ -703,16 +708,8 @@ void Point::print() const {
 }
 
 class ECElGamal {
-  private:
-    BigNumber p;
-    BigNumber a;
-    BigNumber b;
-    BigNumber gx, gy;
-    Point G;
-    BigNumber n;
   public:
-    ECElGamal();
-
+    // helper functions
     Point find(const BigNumber&, const bool);
     Point solve(const BigNumber&);
 
@@ -722,19 +719,8 @@ class ECElGamal {
                  const BigNumber&);
 };
 
-ECElGamal::ECElGamal() {
-  p.set_as(str_p);
-  a.set_as(str_a);
-  b.set_as(str_b);
-  gx.set_as(str_gx);
-  gy.set_as(str_gy);
-  G.set_x(gx);
-  G.set_y(gy);
-  n.set_as(str_n);
-}
-
-
 Point ECElGamal::find(const BigNumber &Px, const bool parity) {
+  BigNumber p(str_p), a(str_a), b(str_b);
   BigNumber Px_cub = Px * Px * Px;
   Px_cub %= p;
   BigNumber y_sq = Px_cub + Px * a + b;
@@ -744,10 +730,36 @@ Point ECElGamal::find(const BigNumber &Px, const bool parity) {
   return Point(Px, y_sqrt);
 }
 
+Point ECElGamal::solve(const BigNumber &Px) {
+  BigNumber p(str_p), a(str_a), b(str_b);
+  Point P = find(Px, true);
+  BigNumber Py;
+  P.get_y(Py);
+  BigNumber lhs = (Py * Py) % p;
+  BigNumber rhs = ((Px * Px * Px) + (a * Px) + b) % p;
+  if (lhs == rhs)
+    return P;
+  else
+    return Point();
+}
+
 int main(int argc, const char * argv[]) {
   ECElGamal ec_elgamal;
-  BigNumber Pax("668E9E1D01A306A1AB76C9949A973248E3AB5300");
-  Point Pa = ec_elgamal.find(Pax, true);
-  Pa.print();
+
+  // encryption
+  Point Pm;
+  BigNumber Pmx, Pmy;
+  BigNumber zero("0"), one("1");
+  BigNumber Mx("110BA66CC954BE963A7831D9D9A3D1D39B8EC3");
+  Mx.rotate_left(2);
+  Mx.update_len(2);
+  while (1) {
+    Pm = ec_elgamal.solve(Mx);
+    Pm.get_x(Pmx);
+    Pm.get_y(Pmy);
+    if (!(Pmx == zero && Pmy == zero)) break;
+    Mx += one;
+  }
+  Pm.print();
   return 0;
 }
