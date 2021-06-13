@@ -115,6 +115,7 @@ class BigNumber {
     ~BigNumber();
 
     // operators
+    BigNumber operator-() const;
     bool operator>(const BigNumber&) const;
     bool operator<(const BigNumber&) const;
     bool operator==(const BigNumber&) const;
@@ -133,13 +134,17 @@ class BigNumber {
     // helper functions
     void print() const;
     bool is_even() const;
+    bool is_negative() const {return _sign;}
+    bool is_zero() const {
+      BigNumber zero("0");
+      return *this == zero;
+    }
     int get_len() const {return _len;}
     char get_bit(const int i) const {return _array[i];}
 
     void update_len(const int);
     void rotate_left(const int);
     void rotate_right(const int);
-    void padding(const BigNumber&, const int);
     void set_as(const string&);
     void set_sign(const bool x) {_sign = x;}
 };
@@ -188,6 +193,12 @@ BigNumber::BigNumber(const bool sign, const int len, const char *array) {
 BigNumber::~BigNumber() {
   /* destructor */
   delete[] _array;
+}
+
+BigNumber BigNumber::operator-() const {
+  BigNumber res;
+  res.set_sign(!_sign);
+  return res;
 }
 
 bool BigNumber::operator>(const BigNumber &target) const {
@@ -578,12 +589,6 @@ inline void BigNumber::rotate_right(const int x) {
     _array[i] = '0';
 }
 
-inline void BigNumber::padding(const BigNumber &m, const int b) {
-  /* padding the last b-bits in the tail with m */
-  for (int i = 0; i < b; ++i)
-    _array[i] = m._array[i];
-}
-
 inline void BigNumber::set_as(const string &array) {
   _sign = array[0] == '-';
   int new_len = 0;
@@ -609,7 +614,7 @@ void modular_exp(BigNumber &y, const BigNumber &a, const BigNumber &m,
   BigNumber a_copy, m_copy;
   a_copy = a;
   m_copy = m;
-  while (!(m_copy.get_len() == 1 && m_copy.get_bit(0) == '0')) {
+  while (!(m_copy.is_zero())) {
     for (int i = 0; i < HEX2DEC(m_copy.get_bit(0)); ++i) {
       y *= a_copy;
       y %= n;
@@ -649,6 +654,26 @@ BigNumber square_root(const BigNumber &a, const BigNumber &p) {
   return sqrt;
 }
 
+void extended_euclid_algo(const BigNumber &p, const BigNumber &q,
+                          BigNumber &c) {
+  BigNumber tmp, m, r0, r1;
+  BigNumber s0("1"), s1("0");
+  r0 = p;
+  r1 = q;
+  while (!(r1.is_zero())) {
+    m = r0 / r1;
+
+    tmp = r0;
+    r0 = r1;
+    r1 = tmp % r1;
+
+    tmp = s0;
+    s0 = s1;
+    s1 = tmp - (s1 * m);
+  }
+  c = s0;
+}
+
 class Point {
   private:
     BigNumber x;
@@ -660,46 +685,110 @@ class Point {
 
     // operators
     bool operator==(const Point&) const;
-    Point operator+(const Point&) const;
+    Point operator-() const;  // negation
+    Point operator+(const Point&) const;  // addition
     Point operator*(const BigNumber&) const;
 
     // helper functions
     void print() const;
     void get_x(BigNumber& xx) const {xx = x;}
     void get_y(BigNumber& yy) const {yy = y;}
+
     void set_x(const BigNumber& xx) {x = xx;}
     void set_y(const BigNumber& yy) {y = yy;}
-    void negating() {y.set_sign(true);}
+    bool is_zero() const {
+      BigNumber zero("0");
+      return x == zero && y == zero;
+    }
 };
 
 Point::Point() {
-  x.set_as("0");
-  y.set_as("0");
+  BigNumber zero("0");
+  set_x(zero);
+  set_y(zero);
 }
 
 Point::Point(const BigNumber &xx, const BigNumber &yy) {
-  x = xx;
-  y = yy;
+  set_x(xx);
+  set_y(yy);
 }
 
 bool Point::operator==(const Point &P) const {
   return x == P.x && y == P.y;
 }
 
+Point Point::operator-() const {
+  BigNumber xx, yy;
+  get_x(xx);
+  get_y(yy);
+  yy = - yy;
+  return Point(xx, yy);
+}
+
 Point Point::operator+(const Point &Q) const {
-  BigNumber a(str_a), p(str_p);
+  if (is_zero()) {
+    BigNumber xx, yy;
+    Q.get_x(xx);
+    Q.get_y(yy);
+    return Point(xx, yy);
+  } else if (Q.is_zero()) {
+    BigNumber xx, yy;
+    get_x(xx);
+    get_y(yy);
+    return Point(xx, yy);
+  } else if (x == Q.x && (!(y == Q.y) || y.is_zero())) return Point();
+  BigNumber p(str_p), a(str_a), b(str_b);
   BigNumber two("2"), three("3");
   BigNumber l;
-  if (*this == Q)
-    l = (three * (x * x) + a) / (two * y);
-  else
-    l = (Q.y - y) / (Q.x - x);
+  if (*this == Q) {
+    BigNumber inv;
+    extended_euclid_algo(two * y, p, inv);
+    /* for (; inv.is_negative(); inv+=p); */
+    /* cout << "c1: "; */
+    /* inv.print(); */
+    l = (three * x * x + a) * inv;
+  } else {
+    BigNumber inv;
+    extended_euclid_algo(Q.x - x, p, inv);
+    /* for (; inv.is_negative(); inv+=p); */
+    /* cout << "c2: "; */
+    /* inv.print(); */
+    l = (Q.y - y) * inv;
+  }
   l %= p;
-  BigNumber x3 = (l * l) - x - Q.x;
-  x3 %= p;
-  BigNumber y3 = l * (x - x3) - y;
-  y3 %= p;
+  /* for (; l.is_negative(); l+=p); */
+  BigNumber x3, y3;
+  x3 = ((l * l) - x - Q.x) % p;
+  y3 = (l * (x - x3) - y) % p;
+  /* for (; x3.is_negative(); x3+=p); */
+  /* for (; y3.is_negative(); y3+=p); */
   return Point(x3, y3);
+}
+
+Point Point::operator*(const BigNumber& k) const {
+  BigNumber k_copy;
+  k_copy = k;
+  Point r;
+  BigNumber xx, yy;
+  get_x(xx);
+  get_y(yy);
+  Point P(xx, yy);
+  while (!(k_copy.is_zero())) {
+    for (int i = 0; i < HEX2DEC(k_copy.get_bit(0)); ++i) {
+      r = r + P;
+    }
+    for (int i = 0; i < 4; ++i) {
+      P = P + P;
+    }
+    /* cout << k_copy.get_bit(0) << endl; */
+    /* cout << "r" << endl; */
+    /* r.print(); */
+    /* cout << "p" << endl; */
+    /* P.print(); */
+    k_copy.rotate_right(1);
+    k_copy.update_len(-1);
+  }
+  return r;
 }
 
 void Point::print() const {
@@ -710,8 +799,7 @@ void Point::print() const {
 class ECElGamal {
   public:
     // helper functions
-    Point find(const BigNumber&, const bool);
-    Point solve(const BigNumber&);
+    Point solve(const BigNumber&, const bool);
 
     void encrypt(const BigNumber&, const Point&, const Point&, const Point&,
                  const Point&, const Point&);
@@ -719,47 +807,62 @@ class ECElGamal {
                  const BigNumber&);
 };
 
-Point ECElGamal::find(const BigNumber &Px, const bool parity) {
+Point ECElGamal::solve(const BigNumber &Px, const bool parity) {
+  // parity is true means choosing the odd one
   BigNumber p(str_p), a(str_a), b(str_b);
   BigNumber Px_cub = Px * Px * Px;
   Px_cub %= p;
   BigNumber y_sq = Px_cub + Px * a + b;
   y_sq %= p;
-  BigNumber y_sqrt = square_root(y_sq, p);
-  // TODO: check parity
-  return Point(Px, y_sqrt);
-}
-
-Point ECElGamal::solve(const BigNumber &Px) {
-  BigNumber p(str_p), a(str_a), b(str_b);
-  Point P = find(Px, true);
-  BigNumber Py;
-  P.get_y(Py);
+  BigNumber Py = square_root(y_sq, p);
+  // check if valid
   BigNumber lhs = (Py * Py) % p;
-  BigNumber rhs = ((Px * Px * Px) + (a * Px) + b) % p;
+  BigNumber rhs;
+  rhs = y_sq;
   if (lhs == rhs)
-    return P;
-  else
-    return Point();
+    return Point(Px, Py);
+  return Point();
 }
 
 int main(int argc, const char * argv[]) {
-  ECElGamal ec_elgamal;
+  /* BigNumber gx(str_gx), gy(str_gy); */
+  /* Point G(gx, gy); */
+  /* BigNumber two("2"); */
+  /* for (int i = 0; i < 16; ++i) { */
+  /*   G = G * two; */
+  /*   cout << i + 1 << endl; */
+  /*   G.print(); */
+  /* } */
+
+  /* Point S; */
+  /* S = G + G; */
+  /* S.print(); */
+
+
+
+  BigNumber nk("8E07EB4265F1200D0745BCB3E47EDD2D23FBF571");
+  BigNumber gx(str_gx), gy(str_gy);
+  Point G(gx, gy);
+
+  Point a;
+
+  a = G * nk;
+  a.print();
+
+
 
   // encryption
-  Point Pm;
-  BigNumber Pmx, Pmy;
-  BigNumber zero("0"), one("1");
-  BigNumber Mx("110BA66CC954BE963A7831D9D9A3D1D39B8EC3");
-  Mx.rotate_left(2);
-  Mx.update_len(2);
-  while (1) {
-    Pm = ec_elgamal.solve(Mx);
-    Pm.get_x(Pmx);
-    Pm.get_y(Pmy);
-    if (!(Pmx == zero && Pmy == zero)) break;
-    Mx += one;
-  }
-  Pm.print();
+  /* ECElGamal ec_elgamal; */
+  /* Point Pm; */
+  /* BigNumber one("1"); */
+  /* BigNumber Mx("668E9E1D01A306A1AB76C9949A973248E3AB53"); */
+  /* Mx.rotate_left(2); */
+  /* Mx.update_len(2); */
+  /* while (1) { */
+  /*   Pm = ec_elgamal.solve(Mx, true); */
+  /*   if (!Pm.is_zero()) break; */
+  /*   Mx += one; */
+  /* } */
+  /* Pm.print(); */
   return 0;
 }
